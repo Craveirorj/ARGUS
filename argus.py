@@ -13,19 +13,36 @@ import datetime
 import shutil
 from pathlib import Path
 
-try:
-    from rich.console import Console
-    from rich.panel import Panel
-    from rich.table import Table
-    from rich.text import Text
-    from rich.prompt import Prompt, Confirm
-    from rich.rule import Rule
-    from rich import box
-    from rich.align import Align
-    from rich.theme import Theme
-except ImportError:
-    print("[!] Instala o rich: pip3 install rich --break-system-packages")
-    sys.exit(1)
+# ──────────────────────────────────────────────────────────
+#  AUTO-INSTALL rich se necessário
+# ──────────────────────────────────────────────────────────
+def _ensure_rich():
+    try:
+        import rich  # noqa
+    except ImportError:
+        print("\n  [ARGUS] Biblioteca 'rich' nao encontrada. A instalar...\n")
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "rich", "--break-system-packages"],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            print("  [ERRO] Falha ao instalar rich.")
+            print("  Tenta manualmente: pip3 install rich --break-system-packages")
+            sys.exit(1)
+        print("  [OK] rich instalado. A reiniciar...\n")
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+
+_ensure_rich()
+
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+from rich.prompt import Prompt, Confirm
+from rich.rule import Rule
+from rich import box
+from rich.align import Align
+from rich.theme import Theme
 
 # ── TEMA VERDE / PRETO ─────────────────────────────────────
 argus_theme = Theme({
@@ -367,13 +384,16 @@ def menu_ips():
         print_option("4", "Nmap – agressivo (-A)","Scan completo com OS detection, traceroute e scripts", "nmap")
         print_option("5", "Traceroute",           "Mapa da rota de rede entre o teu host e o alvo", "traceroute")
         print_option("6", "Shodan CLI",           "Consulta informação pública do IP: portos, banners, CVEs", "shodan")
-        print_option("7", "Shodan (browser)",     "Dashboard web do Shodan com histórico e detalhes do host", "web")
-        print_option("8", "Censys (browser)",     "Alternativa ao Shodan: certificados, serviços e metadados", "web")
-        print_option("9", "ZoomEye (browser)",    "Motor de busca de dispositivos em rede, foco em IoT/China", "web")
-        print_option("A", "IPinfo.io",            "Geolocalização, ASN, operador e hostname do IP", "web")
-        print_option("B", "GreyNoise",            "Verifica se o IP é scanner malicioso ou tráfego legítimo", "web")
-        print_option("C", "AbuseIPDB",            "Reputação do IP: reportes de abuso, spam e ataques", "web")
-        print_option("D", "VirusTotal",           "Análise do IP: malware, phishing, reputação em múltiplos engines", "web")
+        print_option("7", "Shodan – host (web)",  "Página web do host no Shodan: serviços, portos, histórico", "web")
+        print_option("8", "Shodan – dashboard",   "Dashboard principal do Shodan para pesquisa e exploração", "web")
+        print_option("9", "Censys (browser)",     "Alternativa ao Shodan: certificados, serviços e metadados", "web")
+        print_option("A", "ZoomEye (browser)",    "Motor de busca de dispositivos em rede, foco em IoT/China", "web")
+        print_option("B", "IPinfo.io",            "Geolocalização, ASN, operador e hostname do IP", "web")
+        print_option("C", "GreyNoise",            "Verifica se o IP é scanner malicioso ou tráfego legítimo", "web")
+        print_option("D", "AbuseIPDB",            "Reputação do IP: reportes de abuso, spam e ataques", "web")
+        print_option("E", "VirusTotal",           "Análise do IP: malware, phishing, reputação em múltiplos engines", "web")
+        print_option("F", "BGP.tools",            "Informação BGP, ASN, prefixos e rotas do IP em tempo real", "web")
+        print_option("G", "Hurricane Electric",   "BGP Toolkit: ASN, prefixos, peers e geolocalização de rede", "web")
         print_option("0", "← Voltar",             "", "")
         console.print()
 
@@ -397,19 +417,25 @@ def menu_ips():
             elif not tool_exists("shodan"):
                 console.print("[error]shodan CLI não instalado: pip3 install shodan --break-system-packages[/error]")
         elif choice == "7":
-            open_url(f"https://www.shodan.io/host/{ip2}", "Shodan web")
+            open_url(f"https://www.shodan.io/host/{ip2}", "Shodan host web")
         elif choice == "8":
-            open_url(f"https://search.censys.io/hosts/{ip2}", "Censys")
+            open_url("https://www.shodan.io/dashboard", "Shodan dashboard")
         elif choice == "9":
-            open_url(f"https://www.zoomeye.org/searchResult?q={ip2}", "ZoomEye")
+            open_url(f"https://search.censys.io/hosts/{ip2}", "Censys")
         elif choice == "A":
-            open_url(f"https://ipinfo.io/{ip2}", "IPinfo")
+            open_url(f"https://www.zoomeye.org/searchResult?q={ip2}", "ZoomEye")
         elif choice == "B":
-            open_url(f"https://www.greynoise.io/viz/ip/{ip2}", "GreyNoise")
+            open_url(f"https://ipinfo.io/{ip2}", "IPinfo")
         elif choice == "C":
-            open_url(f"https://www.abuseipdb.com/check/{ip2}", "AbuseIPDB")
+            open_url(f"https://www.greynoise.io/viz/ip/{ip2}", "GreyNoise")
         elif choice == "D":
+            open_url(f"https://www.abuseipdb.com/check/{ip2}", "AbuseIPDB")
+        elif choice == "E":
             open_url(f"https://www.virustotal.com/gui/ip-address/{ip2}", "VirusTotal")
+        elif choice == "F":
+            open_url(f"https://bgp.tools/prefix/{ip2}", "BGP.tools")
+        elif choice == "G":
+            open_url(f"https://bgp.he.net/ip/{ip2}", "Hurricane Electric")
         elif choice == "0":
             break
         else:
@@ -506,13 +532,17 @@ def menu_equipamentos():
         print_option("3", "Shodan – routers (PT)",        "Routers e gateways com portos abertos em Portugal", "web")
         print_option("4", "Shodan – ICS/SCADA",           "Sistemas industriais e infra-estruturas críticas expostas", "web")
         print_option("5", "Shodan – Portugal completo",   "Todos os dispositivos indexados pelo Shodan em Portugal", "web")
-        print_option("6", "Censys – serviços e certs",    "Pesquisa de certificados SSL, serviços e metadados de hosts", "web")
-        print_option("7", "ZoomEye – IoT",                "Motor de busca focado em IoT e dispositivos embedded", "web")
-        print_option("8", "WiGLE – redes Wi-Fi",          "Mapa global de redes Wi-Fi detectadas por war driving", "web")
-        print_option("9", "GPSJam",                       "Interferência GPS em tempo real: zonas afectadas no mapa", "web")
-        print_option("A", "Shodan – CVEs de um IP",       "Lista vulnerabilidades CVE conhecidas associadas ao IP", "shodan")
-        print_option("B", "Shodan – por organização",     "Todos os activos expostos de uma empresa ou ASN específico", "web")
-        print_option("C", "FOFA",                         "Alternativa ao Shodan: motor de busca de activos de rede", "web")
+        print_option("6", "Shodan – dashboard",           "Dashboard principal do Shodan para pesquisa e exploração", "web")
+        print_option("7", "Censys – serviços e certs",    "Pesquisa de certificados SSL, serviços e metadados de hosts", "web")
+        print_option("8", "ZoomEye – IoT",                "Motor de busca focado em IoT e dispositivos embedded", "web")
+        print_option("9", "WiGLE – redes Wi-Fi",          "Mapa global de redes Wi-Fi detectadas por war driving", "web")
+        print_option("A", "GPSJam",                       "Interferência GPS em tempo real: zonas afectadas no mapa", "web")
+        print_option("B", "Shodan – CVEs de um IP",       "Lista vulnerabilidades CVE conhecidas associadas ao IP", "shodan")
+        print_option("C", "Shodan – por organização",     "Todos os activos expostos de uma empresa ou ASN específico", "web")
+        print_option("D", "FOFA",                         "Alternativa ao Shodan: motor de busca de activos de rede", "web")
+        print_option("E", "BinaryEdge",                   "Plataforma de threat intelligence e scan de internet", "web")
+        print_option("F", "Onyphe",                       "Cyber threat intelligence: dados passivos de reconhecimento", "web")
+        print_option("G", "Natlas",                       "Framework open-source para scanning e indexação de rede", "web")
         print_option("0", "← Voltar",                     "", "")
         console.print()
 
@@ -534,23 +564,31 @@ def menu_equipamentos():
         elif choice == "5":
             open_url("https://www.shodan.io/search?query=country%3APT", "Shodan Portugal")
         elif choice == "6":
-            open_url("https://search.censys.io/", "Censys")
+            open_url("https://www.shodan.io/dashboard", "Shodan dashboard")
         elif choice == "7":
-            open_url("https://www.zoomeye.org/", "ZoomEye")
+            open_url("https://search.censys.io/", "Censys")
         elif choice == "8":
-            open_url("https://wigle.net/", "WiGLE")
+            open_url("https://www.zoomeye.org/", "ZoomEye")
         elif choice == "9":
-            open_url("https://gpsjam.org/", "GPSJam")
+            open_url("https://wigle.net/", "WiGLE")
         elif choice == "A":
+            open_url("https://gpsjam.org/", "GPSJam")
+        elif choice == "B":
             ip2 = require_target("ip")
             key = get_api_key("shodan")
             if key and tool_exists("shodan"):
                 run_cmd(f"shodan init {key} && shodan host {ip2} --history", f"Shodan CVEs → {ip2}")
-        elif choice == "B":
+        elif choice == "C":
             org = Prompt.ask("  Nome da organização ou ASN")
             open_url(f"https://www.shodan.io/search?query=org%3A%22{org.replace(' ', '+')}%22", f"Shodan org → {org}")
-        elif choice == "C":
+        elif choice == "D":
             open_url("https://fofa.info/", "FOFA")
+        elif choice == "E":
+            open_url("https://www.binaryedge.io/", "BinaryEdge")
+        elif choice == "F":
+            open_url("https://www.onyphe.io/", "Onyphe")
+        elif choice == "G":
+            open_url("https://github.com/natlas/natlas", "Natlas GitHub")
         elif choice == "0":
             break
         else:
@@ -876,12 +914,21 @@ def menu_recursos():
         print_option("3", "OSINT Combine",          "Colecção curada de ferramentas e técnicas OSINT combinadas", "web")
         print_option("4", "My OSINT Training",      "Plataforma de aprendizagem prática com exercícios reais", "web")
         print_option("5", "District4Labs",          "Plataforma profissional de inteligência e análise OSINT", "web")
-        print_option("6", "Kagi",                   "Motor de busca privado sem rastreio: útil para OSINT neutro", "web")
-        print_option("7", "FlightAware",            "Rastreio de voos em tempo real: rota, altitude, operador", "web")
-        print_option("8", "MarineTraffic",          "Rastreio de embarcações em tempo real: posição AIS global", "web")
-        print_option("9", "OpenCorporates",         "Base de dados global de empresas: registo, directores, filiais", "web")
-        print_option("A", "EDGAR – SEC",            "Registos obrigatórios de empresas cotadas nos EUA", "web")
-        print_option("B", "WeLiveSecurity – Dorks", "Artigo sobre Google Hacking: como usar dorks eficazmente", "web")
+        print_option("6", "Maltego",                "Ferramenta visual de mapeamento de relações e entidades OSINT", "web")
+        print_option("7", "Kagi",                   "Motor de busca privado sem rastreio: útil para OSINT neutro", "web")
+        print_option("8", "FlightAware",            "Rastreio de voos em tempo real: rota, altitude, operador", "web")
+        print_option("9", "MarineTraffic",          "Rastreio de embarcações em tempo real: posição AIS global", "web")
+        print_option("A", "OpenCorporates",         "Base de dados global de empresas: registo, directores, filiais", "web")
+        print_option("B", "EDGAR – SEC",            "Registos obrigatórios de empresas cotadas nos EUA", "web")
+        print_option("C", "WeLiveSecurity – Dorks", "Artigo sobre Google Hacking: como usar dorks eficazmente", "web")
+        print_option("D", "Spiderfoot",             "Plataforma OSINT automatizada: recon completo de alvos", "web")
+        print_option("E", "Recon-ng",               "Framework modular de reconhecimento OSINT para terminal", "web")
+        print_option("F", "theHarvester – docs",    "Documentação e módulos disponíveis do theHarvester", "web")
+        print_option("G", "Hunter.io",              "Pesquisa de emails profissionais por domínio de empresa", "web")
+        print_option("H", "Pipl",                   "Pesquisa avançada de pessoas: redes sociais, email, telefone", "web")
+        print_option("I", "PublicWWW",              "Pesquisa de código-fonte de sites: scripts, widgets, fingerprinting", "web")
+        print_option("J", "BuiltWith",              "Tecnologias usadas por um site: CMS, frameworks, analytics", "web")
+        print_option("K", "Wappalyzer",             "Identifica tecnologias web de qualquer site", "web")
         print_option("0", "← Voltar",               "", "")
         console.print()
 
@@ -893,12 +940,21 @@ def menu_recursos():
             "3": ("https://www.osintcombine.com/", "OSINT Combine"),
             "4": ("https://smart.myosint.training/", "My OSINT Training"),
             "5": ("https://www.district4labs.com/", "District4Labs"),
-            "6": ("https://kagi.com/", "Kagi"),
-            "7": ("https://flightaware.com/", "FlightAware"),
-            "8": ("https://www.marinetraffic.com/", "MarineTraffic"),
-            "9": ("https://opencorporates.com/", "OpenCorporates"),
-            "A": ("https://www.sec.gov/edgar/search/", "EDGAR"),
-            "B": ("https://www.welivesecurity.com/br/2021/07/30/google-hacking-verifique-quais-informacoes-sobre-voce-ou-sua-empresa-aparecem-nos-resultados/", "WeLiveSecurity Dorks"),
+            "6": ("https://www.maltego.com/", "Maltego"),
+            "7": ("https://kagi.com/", "Kagi"),
+            "8": ("https://flightaware.com/", "FlightAware"),
+            "9": ("https://www.marinetraffic.com/", "MarineTraffic"),
+            "A": ("https://opencorporates.com/", "OpenCorporates"),
+            "B": ("https://www.sec.gov/edgar/search/", "EDGAR"),
+            "C": ("https://www.welivesecurity.com/br/2021/07/30/google-hacking-verifique-quais-informacoes-sobre-voce-ou-sua-empresa-aparecem-nos-resultados/", "WeLiveSecurity Dorks"),
+            "D": ("https://www.spiderfoot.net/", "Spiderfoot"),
+            "E": ("https://github.com/lanmaster53/recon-ng", "Recon-ng GitHub"),
+            "F": ("https://www.kali.org/tools/theharvester/", "theHarvester docs"),
+            "G": ("https://hunter.io/", "Hunter.io"),
+            "H": ("https://pipl.com/", "Pipl"),
+            "I": ("https://publicwww.com/", "PublicWWW"),
+            "J": ("https://builtwith.com/", "BuiltWith"),
+            "K": ("https://www.wappalyzer.com/", "Wappalyzer"),
         }
         if choice in urls:
             open_url(*urls[choice])
@@ -1021,11 +1077,155 @@ def menu_principal():
             console.print("[error]Opção inválida.[/error]")
 
 # ──────────────────────────────────────────────────────────
+#  VERIFICAÇÃO DE FERRAMENTAS CLI
+# ──────────────────────────────────────────────────────────
+TOOLS_LIST = [
+    ("nmap",           "Nmap",           "sudo apt install nmap"),
+    ("theharvester",   "theHarvester",   "sudo apt install theharvester"),
+    ("amass",          "Amass",          "sudo apt install amass"),
+    ("subfinder",      "Subfinder",      "go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"),
+    ("sherlock",       "Sherlock",       "pip3 install sherlock-project --break-system-packages"),
+    ("maigret",        "Maigret",        "pip3 install maigret --break-system-packages"),
+    ("holehe",         "Holehe",         "pip3 install holehe --break-system-packages"),
+    ("h8mail",         "H8mail",         "pip3 install h8mail --break-system-packages"),
+    ("shodan",         "Shodan CLI",     "pip3 install shodan --break-system-packages"),
+    ("exiftool",       "ExifTool",       "sudo apt install libimage-exiftool-perl"),
+    ("waybackurls",    "Waybackurls",    "go install github.com/tomnomnom/waybackurls@latest"),
+    ("phoneinfoga",    "PhoneInfoga",    "https://github.com/sundowndev/phoneinfoga"),
+    ("twint",          "Twint",          "pip3 install twint --break-system-packages"),
+    ("traceroute",     "Traceroute",     "sudo apt install traceroute"),
+    ("whois",          "Whois",          "sudo apt install whois"),
+]
+
+def menu_ferramentas():
+    section_header("🔧  ESTADO DAS FERRAMENTAS CLI", "Verifica e instala ferramentas opcionais")
+
+    t = Table(box=box.SIMPLE, show_header=True, padding=(0, 2))
+    t.add_column("[primary]Ferramenta[/primary]", style="desc")
+    t.add_column("[primary]Estado[/primary]")
+    t.add_column("[primary]Instalação[/primary]", style="subdesc")
+
+    missing = []
+    for cmd, label, install_cmd in TOOLS_LIST:
+        if tool_exists(cmd):
+            t.add_row(label, "[ok]✔ instalado[/ok]", "")
+        else:
+            t.add_row(label, "[error]✗ não instalado[/error]", install_cmd)
+            missing.append((cmd, label, install_cmd))
+
+    console.print(t)
+
+    if missing:
+        console.print(f"\n  [warning]{len(missing)} ferramentas em falta.[/warning]")
+        if Confirm.ask("  Queres ver os comandos de instalação completos?"):
+            console.print()
+            for cmd, label, install_cmd in missing:
+                console.print(f"  [key]{label}:[/key]")
+                console.print(f"    [dim_green]{install_cmd}[/dim_green]")
+                console.print()
+    else:
+        console.print("\n  [ok]✔ Todas as ferramentas estão instaladas.[/ok]")
+    pause()
+
+# ──────────────────────────────────────────────────────────
 #  ENTRY POINT
 # ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    # Argumentos de linha de comando
+    if len(sys.argv) > 1:
+        arg = sys.argv[1].lower()
+        if arg in ("--status", "-s"):
+            # Mostra estado das ferramentas sem entrar no menu
+            clear()
+            console.print(BANNER)
+            console.print(Rule(style="green dim"))
+            menu_ferramentas()
+            sys.exit(0)
+        elif arg in ("--help", "-h"):
+            print("\nUso: python3 argus.py [opção]")
+            print("  (sem opção)   Lança o ARGUS normalmente")
+            print("  --status      Mostra estado de todas as ferramentas CLI")
+            print("  --help        Mostra esta ajuda\n")
+            sys.exit(0)
+
+    # Adicionar opção de ferramentas ao menu principal
+    # (injectado via patch no dispatch do menu_principal)
+    _original_menu = menu_principal
+
+    def menu_principal_com_ferramentas():
+        # Patch para adicionar [F2] ferramentas no menu
+        import types
+
+        original_dispatch = {
+            "T": menu_alvo, "A": menu_dominios, "B": menu_pessoas,
+            "C": menu_ips, "D": menu_social, "E": menu_equipamentos,
+            "F": menu_telefone, "G": menu_geo, "H": menu_portugal,
+            "I": menu_dorks, "J": menu_metadados, "K": menu_breaches,
+            "L": menu_recursos, "M": menu_config,
+        }
+        while True:
+            show_banner()
+            alvos_activos = {k: v for k, v in current_target.items() if v}
+            if alvos_activos:
+                t = Table(box=box.SIMPLE, show_header=False, padding=(0, 2))
+                for k, v in alvos_activos.items():
+                    t.add_row(f"[dim_green]{k}[/dim_green]", f"[target]{v}[/target]")
+                console.print(Panel(t, title="[bold green]🎯 Alvo Activo[/bold green]", border_style="green dim", padding=(0, 2)))
+            else:
+                console.print(Panel("[dim_green]Sem alvo definido. Usa [T] para definir.[/dim_green]",
+                                    border_style="green dim", padding=(0, 2)))
+            console.print()
+
+            menus = [
+                ("T", "Definir Alvo",                    "Configura domínio, IP, username, email, telefone, nome e NIF"),
+                ("─", "", ""),
+                ("A", "Domínios / Empresas / DNS",        "WHOIS, dig, subfinder, amass, theHarvester, crt.sh"),
+                ("B", "Pessoas / Usernames / Identidade", "Sherlock, Maigret, Holehe, H8mail, Radaris, OSINT Industries"),
+                ("C", "IPs / Infraestrutura",             "Nmap, WHOIS IP, Shodan, Censys, AbuseIPDB, VirusTotal"),
+                ("D", "Redes Sociais",                    "Twitter, Instagram, Facebook, LinkedIn, TikTok, Reddit"),
+                ("E", "Equipamentos / IoT / Shodan",      "Shodan queries, câmeras, routers, ICS/SCADA, WiGLE, GPSJam"),
+                ("F", "Telefone / Identificação",         "Truecaller, Sync.me, SpyDialer, PhoneInfoga"),
+                ("G", "Geolocalização / Mapas",           "Google Earth, WiGLE, GPSJam, SunCalc, ExifTool GPS"),
+                ("H", "🇵🇹 Portugal Específico",           "NIF lookup, CC, Ubikron, RACIUS, Transparência.pt"),
+                ("I", "Google Dorks",                     "GHDB, DorkGPT, dorks automáticos por categoria"),
+                ("J", "Metadados / Arquivos / Histórico", "ExifTool, Wayback Machine, Arquivo.pt, ODCrawler"),
+                ("K", "Breaches / Fugas de Dados",        "HIBP, H8mail, Holehe, IntelX, DeHashed, LeakIX"),
+                ("L", "Recursos / Referências",           "OSINT Framework, Bellingcat, FlightAware, MarineTraffic"),
+                ("─", "", ""),
+                ("M", "Configurações / API Keys",         "Shodan, Censys, HIBP, ZoomEye"),
+                ("?", "Estado das Ferramentas CLI",       "Verifica quais ferramentas estão instaladas"),
+                ("S", "Guardar Sessão",                   "Exporta o log completo da sessão para JSON"),
+                ("0", "Sair",                             ""),
+            ]
+
+            for key, label, hint in menus:
+                if key == "─":
+                    console.print(f"  [separator]{'─' * 58}[/separator]")
+                elif key == "0":
+                    console.print(f"  [key][{key}][/key]  [desc]{label}[/desc]")
+                else:
+                    console.print(f"  [key][{key}][/key]  [desc]{label}[/desc]  [subdesc]{hint}[/subdesc]")
+
+            console.print()
+            choice = Prompt.ask("[bold green]ARGUS ▶[/bold green]").strip().upper()
+
+            if choice in original_dispatch:
+                original_dispatch[choice]()
+            elif choice == "?":
+                menu_ferramentas()
+            elif choice == "S":
+                save_session()
+                pause()
+            elif choice == "0":
+                if Confirm.ask("\n  Guardar sessão antes de sair?"):
+                    save_session()
+                console.print("\n[bold green]ARGUS[/bold green] [dim_green]encerrado. Stay ethical.[/dim_green]\n")
+                sys.exit(0)
+            else:
+                console.print("[error]Opção inválida.[/error]")
+
     try:
-        menu_principal()
+        menu_principal_com_ferramentas()
     except KeyboardInterrupt:
         console.print("\n\n[bold green]ARGUS[/bold green] [dim_green]interrompido.[/dim_green]\n")
         sys.exit(0)
