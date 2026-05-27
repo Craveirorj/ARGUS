@@ -110,6 +110,90 @@ def open_url(url, label=""):
 def tool_exists(tool):
     return shutil.which(tool) is not None
 
+# Mapa de comandos de instalação por ferramenta
+INSTALL_CMDS = {
+    "sherlock":        ("apt",  "sherlock"),
+    "maigret":         ("pipx", "maigret"),
+    "holehe":          ("pipx", "holehe"),
+    "h8mail":          ("apt",  "h8mail"),
+    "social-analyzer": ("pipx", "social-analyzer"),
+    "shodan":          ("pip3", "shodan"),
+    "subfinder":       ("go",   "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"),
+    "amass":           ("apt",  "amass"),
+    "waybackurls":     ("go",   "github.com/tomnomnom/waybackurls@latest"),
+    "nmap":            ("apt",  "nmap"),
+    "theharvester":    ("apt",  "theharvester"),
+    "exiftool":        ("apt",  "libimage-exiftool-perl"),
+    "traceroute":      ("apt",  "traceroute"),
+    "whois":           ("apt",  "whois"),
+    "twint":           ("apt",  "twint"),
+}
+
+def auto_install(tool):
+    """Pergunta se quer instalar a ferramenta e instala sem sair do ARGUS."""
+    if tool not in INSTALL_CMDS:
+        console.print(f"[error]✗ {tool} não instalado. Instala manualmente.[/error]")
+        return False
+
+    method, pkg = INSTALL_CMDS[tool]
+    console.print(f"\n[warning]⚠ {tool} não está instalado.[/warning]")
+
+    if method == "apt":
+        cmd_str = f"sudo apt install -y {pkg}"
+    elif method == "pipx":
+        cmd_str = f"pipx install {pkg}"
+    elif method == "pip3":
+        cmd_str = f"pip3 install {pkg} --break-system-packages"
+    elif method == "go":
+        cmd_str = f"go install {pkg}"
+    else:
+        cmd_str = pkg
+
+    console.print(f"  [dim_green]Comando: {cmd_str}[/dim_green]")
+    resposta = Prompt.ask("  Instalar agora?", choices=["s", "n"], default="s")
+
+    if resposta.lower() != "s":
+        console.print("[dim_green]Instalação cancelada.[/dim_green]")
+        return False
+
+    console.print(f"\n[primary]▶ A instalar {tool}...[/primary]\n")
+
+    if method == "apt":
+        ret = os.system(f"sudo apt install -y {pkg}")
+    elif method == "pipx":
+        # garantir pipx instalado
+        if not tool_exists("pipx"):
+            console.print("[dim_green]A instalar pipx primeiro...[/dim_green]")
+            os.system("sudo apt install -y pipx && pipx ensurepath")
+        ret = os.system(f"pipx install {pkg}")
+    elif method == "pip3":
+        ret = os.system(f"pip3 install {pkg} --break-system-packages")
+    elif method == "go":
+        ret = os.system(f"go install {pkg}")
+    else:
+        ret = 1
+
+    if ret == 0 and tool_exists(tool):
+        console.print(f"\n[ok]✔ {tool} instalado com sucesso! A continuar...[/ok]")
+        return True
+    else:
+        # pipx instala em PATH que pode precisar reload
+        new_path = os.path.expanduser("~/.local/bin")
+        full_path = os.path.join(new_path, tool)
+        if os.path.exists(full_path):
+            os.environ["PATH"] = new_path + ":" + os.environ.get("PATH", "")
+            console.print(f"\n[ok]✔ {tool} instalado! PATH actualizado. A continuar...[/ok]")
+            return True
+        console.print(f"\n[error]✗ Instalação falhou ou {tool} não encontrado no PATH.[/error]")
+        console.print(f"  [dim_green]Tenta manualmente: {cmd_str}[/dim_green]")
+        return False
+
+def require_tool(tool):
+    """Verifica se ferramenta existe; se não, oferece instalação automática. Retorna True se disponível."""
+    if tool_exists(tool):
+        return True
+    return auto_install(tool)
+
 def require_target(field):
     val = current_target.get(field)
     if not val:
@@ -164,21 +248,23 @@ def print_option(key, name, desc, req=""):
 # ──────────────────────────────────────────────────────────
 #  BANNER
 # ──────────────────────────────────────────────────────────
-BANNER = """
-[bold green]
- █████╗ ██████╗  ██████╗ ██╗   ██╗███████╗
-██╔══██╗██╔══██╗██╔════╝ ██║   ██║██╔════╝
-███████║██████╔╝██║  ███╗██║   ██║███████╗
-██╔══██║██╔══██╗██║   ██║██║   ██║╚════██║
-██║  ██║██║  ██║╚██████╔╝╚██████╔╝███████║
-╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚══════╝[/bold green]
-[dim green]     Advanced Reconnaissance & OSINT Intelligence Suite[/dim green]
-[dim green]     "O gigante de 100 olhos que tudo vê"  |  Kali Linux  |  v1.0[/dim green]
-"""
+BANNER_LINES = [
+    " █████╗ ██████╗  ██████╗ ██╗   ██╗███████╗",
+    "██╔══██╗██╔══██╗██╔════╝ ██║   ██║██╔════╝",
+    "███████║██████╔╝██║  ███╗██║   ██║███████╗",
+    "██╔══██║██╔══██╗██║   ██║██║   ██║╚════██║",
+    "██║  ██║██║  ██║╚██████╔╝╚██████╔╝███████║",
+    "╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚══════╝",
+]
 
 def show_banner():
     clear()
-    console.print(BANNER)
+    console.print()
+    for line in BANNER_LINES:
+        console.print(Align.center(f"[bold green]{line}[/bold green]"))
+    console.print(Align.center("[dim green]Advanced Reconnaissance & OSINT Intelligence Suite[/dim green]"))
+    console.print(Align.center('[dim green]"O gigante de 100 olhos que tudo vê"  |  Kali Linux  |  v1.0[/dim green]'))
+    console.print()
     console.print(Rule(style="green dim"))
 
 # ──────────────────────────────────────────────────────────
@@ -238,20 +324,14 @@ def menu_dominios():
         elif choice == "2":
             run_cmd(f"dig ANY {d} +noall +answer", f"DNS ANY → {d}")
         elif choice == "3":
-            if tool_exists("subfinder"):
+            if require_tool("subfinder"):
                 run_cmd(f"subfinder -d {d} -silent", f"Subfinder → {d}")
-            else:
-                console.print("[error]subfinder não instalado: go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest[/error]")
         elif choice == "4":
-            if tool_exists("amass"):
+            if require_tool("amass"):
                 run_cmd(f"amass enum -passive -d {d}", f"Amass → {d}")
-            else:
-                console.print("[error]amass não instalado: sudo apt install amass[/error]")
         elif choice == "5":
-            if tool_exists("theHarvester") or tool_exists("theharvester"):
+            if tool_exists("theHarvester") or require_tool("theharvester"):
                 run_cmd(f"theHarvester -d {d} -b all", f"theHarvester → {d}")
-            else:
-                console.print("[error]theHarvester não instalado: sudo apt install theharvester[/error]")
         elif choice == "6":
             open_url("https://dnsdumpster.com/", "DNSDumpster")
         elif choice == "7":
@@ -269,11 +349,9 @@ def menu_dominios():
             else:
                 console.print("[error]Não foi possível obter nameserver.[/error]")
         elif choice == "C":
-            if tool_exists("theHarvester") or tool_exists("theharvester"):
+            if tool_exists("theHarvester") or require_tool("theharvester"):
                 sources = Prompt.ask("Fontes (ex: google,bing,crtsh)", default="google,bing,crtsh")
                 run_cmd(f"theHarvester -d {d} -b {sources} -l 500", f"theHarvester avançado → {d}")
-            else:
-                console.print("[error]theHarvester não instalado.[/error]")
         elif choice == "0":
             break
         else:
@@ -292,20 +370,14 @@ def menu_pessoas():
         n = current_target["name"] or "[dim]não definido[/dim]"
         console.print(f"  Username: [target]{u}[/target]  |  Email: [target]{e}[/target]  |  Nome: [target]{n}[/target]\n")
 
-        print_option("1", "Sherlock",          "Pesquisa username em mais de 300 redes sociais e sites", "sherlock")
-        print_option("2", "Maigret",           "Constrói perfil completo a partir de username: foto, bio, links", "maigret")
-        print_option("3", "WhatsMyName",       "Verifica presença de username em centenas de plataformas online", "web")
-        print_option("4", "Holehe",            "Verifica se um email está registado em mais de 100 serviços", "holehe")
-        print_option("5", "HaveIBeenPwned",    "Verifica se o email aparece em fugas de dados conhecidas", "web")
-        print_option("6", "H8mail",            "Pesquisa local de emails em bases de dados de breaches", "h8mail")
-        print_option("7", "Radaris",           "Background check: histórico de endereços, familiares, processos", "web")
-        print_option("8", "FastPeopleSearch",  "Pesquisa de pessoas por nome, morada ou número de telefone", "web")
-        print_option("9", "People Search",     "Agregador de informação pública sobre pessoas", "web")
-        print_option("A", "Social Analyzer",   "Análise de perfis em redes sociais com scoring de confiança", "social-analyzer")
-        print_option("B", "OSINTgram",         "Extrai seguidores, posts e metadados de perfis Instagram", "web")
-        print_option("C", "Datagma",           "Enriquecimento de dados: empresa, cargo, perfis a partir de email", "web")
-        print_option("D", "OSINT Industries",  "Plataforma all-in-one: email, username, telefone, IP numa só pesquisa", "web")
-        print_option("E", "BehindTheName",     "Gerador de identidades fictícias para criação de personas OSINT", "web")
+        print_option("1", "Maigret",           "Constrói perfil completo de identidade: foto, bio, links cruzados entre plataformas", "maigret")
+        print_option("2", "Radaris",           "Background check: histórico de endereços, familiares, processos judiciais", "web")
+        print_option("3", "FastPeopleSearch",  "Pesquisa de pessoas por nome, morada ou número de telefone", "web")
+        print_option("4", "People Search",     "Agregador de informação pública sobre pessoas", "web")
+        print_option("5", "OSINT Industries",  "Plataforma all-in-one: email, username, telefone, IP numa só pesquisa", "web")
+        print_option("6", "Datagma",           "Enriquecimento de dados: empresa, cargo, perfis a partir de email", "web")
+        print_option("7", "OSINTgram",         "Extrai seguidores, posts, geotags e metadados de perfis Instagram", "web")
+        print_option("8", "BehindTheName",     "Gerador de identidades fictícias para criação de personas OSINT", "web")
         print_option("0", "← Voltar",          "", "")
         console.print()
 
@@ -313,54 +385,23 @@ def menu_pessoas():
 
         if choice == "1":
             u2 = require_target("username")
-            if tool_exists("sherlock"):
-                run_cmd(f"sherlock {u2} --output ~/argus_sessions/sherlock_{u2}.txt", f"Sherlock → {u2}")
-            else:
-                console.print("[error]sherlock não instalado: pip3 install sherlock-project --break-system-packages[/error]")
-        elif choice == "2":
-            u2 = require_target("username")
-            if tool_exists("maigret"):
+            if require_tool("maigret"):
                 run_cmd(f"maigret {u2} --html --folderoutput ~/argus_sessions/", f"Maigret → {u2}")
-            else:
-                console.print("[error]maigret não instalado: pip3 install maigret --break-system-packages[/error]")
-        elif choice == "3":
-            open_url("https://whatsmyname.app/", "WhatsMyName")
-        elif choice == "4":
-            e2 = require_target("email")
-            if tool_exists("holehe"):
-                run_cmd(f"holehe {e2}", f"Holehe → {e2}")
-            else:
-                console.print("[error]holehe não instalado: pip3 install holehe --break-system-packages[/error]")
-        elif choice == "5":
-            e2 = require_target("email")
-            open_url(f"https://haveibeenpwned.com/account/{e2}", "HaveIBeenPwned")
-        elif choice == "6":
-            e2 = require_target("email")
-            if tool_exists("h8mail"):
-                run_cmd(f"h8mail -t {e2}", f"H8mail → {e2}")
-            else:
-                console.print("[error]h8mail não instalado: pip3 install h8mail --break-system-packages[/error]")
-        elif choice == "7":
+        elif choice == "2":
             n2 = require_target("name")
             open_url(f"https://radaris.com/p/{n2.replace(' ', '-')}", "Radaris")
-        elif choice == "8":
+        elif choice == "3":
             n2 = require_target("name")
             open_url(f"https://fastpeoplesearch.ai/name/{n2.replace(' ', '-')}", "FastPeopleSearch")
-        elif choice == "9":
+        elif choice == "4":
             open_url("https://people-search.net/", "People Search")
-        elif choice == "A":
-            u2 = require_target("username")
-            if tool_exists("social-analyzer"):
-                run_cmd(f"social-analyzer --username {u2} --mode fast", f"Social Analyzer → {u2}")
-            else:
-                console.print("[error]social-analyzer não instalado: pip3 install social-analyzer --break-system-packages[/error]")
-        elif choice == "B":
-            open_url("https://github.com/Datalux/Osintgram", "OSINTgram GitHub")
-        elif choice == "C":
-            open_url("https://app.datagma.com/", "Datagma")
-        elif choice == "D":
+        elif choice == "5":
             open_url("https://app.osint.industries/", "OSINT Industries")
-        elif choice == "E":
+        elif choice == "6":
+            open_url("https://app.datagma.com/", "Datagma")
+        elif choice == "7":
+            open_url("https://github.com/Datalux/Osintgram", "OSINTgram GitHub")
+        elif choice == "8":
             open_url("https://www.behindthename.com/random/", "BehindTheName")
         elif choice == "0":
             break
@@ -412,10 +453,8 @@ def menu_ips():
             run_cmd(f"traceroute {ip2}", f"Traceroute → {ip2}")
         elif choice == "6":
             key = get_api_key("shodan")
-            if key and tool_exists("shodan"):
+            if key and (tool_exists("shodan") or require_tool("shodan")):
                 run_cmd(f"shodan init {key} && shodan host {ip2}", f"Shodan CLI → {ip2}")
-            elif not tool_exists("shodan"):
-                console.print("[error]shodan CLI não instalado: pip3 install shodan --break-system-packages[/error]")
         elif choice == "7":
             open_url(f"https://www.shodan.io/host/{ip2}", "Shodan host web")
         elif choice == "8":
@@ -452,18 +491,17 @@ def menu_social():
         u = current_target["username"] or "[dim]não definido[/dim]"
         console.print(f"  Username: [target]{u}[/target]\n")
 
-        print_option("1", "Sherlock",         "Pesquisa username em mais de 300 plataformas sociais", "sherlock")
-        print_option("2", "Maigret",          "Perfil completo: foto, bio, links cruzados entre plataformas", "maigret")
-        print_option("3", "WhatsMyName",      "Interface web para verificar presença em redes sociais", "web")
+        print_option("1", "Sherlock",         "Pesquisa username em mais de 300 redes sociais e plataformas", "sherlock")
+        print_option("2", "WhatsMyName",      "Interface web para verificar presença de username em redes sociais", "web")
+        print_option("3", "Social Analyzer",  "Análise de perfis em 1000+ plataformas com scoring de confiança", "social-analyzer")
         print_option("4", "Twitter / X",      "Pesquisa avançada de tweets e perfil público do utilizador", "web")
         print_option("5", "Instagram",        "Acesso directo ao perfil público do utilizador", "web")
         print_option("6", "Facebook",         "Pesquisa de nome, posts públicos e perfis associados", "web")
-        print_option("7", "LinkedIn",         "Pesquisa profissional: cargo, empresa, conexões", "web")
+        print_option("7", "LinkedIn",         "Pesquisa profissional: cargo, empresa, histórico e conexões", "web")
         print_option("8", "TikTok",           "Perfil público com vídeos e informação do utilizador", "web")
-        print_option("9", "Twint",            "Scraping de tweets sem API: histórico, menções, localização", "twint")
-        print_option("A", "OSINTgram",        "Extrai dados de perfis Instagram: seguidores, geotags, hashtags", "web")
-        print_option("B", "Reddit",           "Histórico de posts e comentários do utilizador no Reddit", "web")
-        print_option("C", "GitHub",           "Perfil, repositórios públicos e actividade de desenvolvimento", "web")
+        print_option("9", "Reddit",           "Histórico de posts e comentários do utilizador no Reddit", "web")
+        print_option("A", "GitHub",           "Perfil, repositórios públicos e actividade de desenvolvimento", "web")
+        print_option("B", "Twint",            "Scraping avançado de tweets sem API: histórico, menções, localização", "twint")
         print_option("0", "← Voltar",         "", "")
         console.print()
 
@@ -471,18 +509,14 @@ def menu_social():
 
         if choice == "1":
             u2 = require_target("username")
-            if tool_exists("sherlock"):
+            if require_tool("sherlock"):
                 run_cmd(f"sherlock {u2} --output ~/argus_sessions/sherlock_{u2}.txt", f"Sherlock → {u2}")
-            else:
-                console.print("[error]sherlock não instalado: pip3 install sherlock-project --break-system-packages[/error]")
         elif choice == "2":
-            u2 = require_target("username")
-            if tool_exists("maigret"):
-                run_cmd(f"maigret {u2} --html --folderoutput ~/argus_sessions/", f"Maigret → {u2}")
-            else:
-                console.print("[error]maigret não instalado: pip3 install maigret --break-system-packages[/error]")
-        elif choice == "3":
             open_url("https://whatsmyname.app/", "WhatsMyName")
+        elif choice == "3":
+            u2 = require_target("username")
+            if require_tool("social-analyzer"):
+                run_cmd(f"social-analyzer --username {u2} --mode fast", f"Social Analyzer → {u2}")
         elif choice == "4":
             u2 = require_target("username")
             open_url(f"https://twitter.com/search?q=from%3A{u2}&src=typed_query", "Twitter/X")
@@ -500,18 +534,16 @@ def menu_social():
             open_url(f"https://www.tiktok.com/@{u2}", "TikTok")
         elif choice == "9":
             u2 = require_target("username")
+            open_url(f"https://www.reddit.com/user/{u2}/", "Reddit")
+        elif choice == "A":
+            u2 = require_target("username")
+            open_url(f"https://github.com/{u2}", "GitHub")
+        elif choice == "B":
+            u2 = require_target("username")
             if tool_exists("twint"):
                 run_cmd(f"twint -u {u2} -o ~/argus_sessions/twint_{u2}.json --json", f"Twint → {u2}")
             else:
-                console.print("[error]twint não instalado: pip3 install twint --break-system-packages[/error]")
-        elif choice == "A":
-            open_url("https://github.com/Datalux/Osintgram", "OSINTgram GitHub")
-        elif choice == "B":
-            u2 = require_target("username")
-            open_url(f"https://www.reddit.com/user/{u2}/", "Reddit")
-        elif choice == "C":
-            u2 = require_target("username")
-            open_url(f"https://github.com/{u2}", "GitHub")
+                console.print("[error]twint está descontinuado. Alternativa: sudo apt install twint ou usa Twitter/X no browser[/error]")
         elif choice == "0":
             break
         else:
@@ -550,11 +582,9 @@ def menu_equipamentos():
 
         if choice == "1":
             key = get_api_key("shodan")
-            if key and tool_exists("shodan"):
+            if key and (tool_exists("shodan") or require_tool("shodan")):
                 query = Prompt.ask("  Query Shodan (ex: port:22 country:PT)")
                 run_cmd(f"shodan init {key} && shodan search \"{query}\"", f"Shodan search → {query}")
-            elif not tool_exists("shodan"):
-                console.print("[error]shodan CLI não instalado: pip3 install shodan --break-system-packages[/error]")
         elif choice == "2":
             open_url("https://www.shodan.io/search?query=webcam+country%3APT", "Shodan câmeras PT")
         elif choice == "3":
@@ -576,7 +606,7 @@ def menu_equipamentos():
         elif choice == "B":
             ip2 = require_target("ip")
             key = get_api_key("shodan")
-            if key and tool_exists("shodan"):
+            if key and (tool_exists("shodan") or require_tool("shodan")):
                 run_cmd(f"shodan init {key} && shodan host {ip2} --history", f"Shodan CVEs → {ip2}")
         elif choice == "C":
             org = Prompt.ask("  Nome da organização ou ASN")
@@ -627,8 +657,10 @@ def menu_telefone():
             if tool_exists("phoneinfoga"):
                 run_cmd(f"phoneinfoga scan -n \"{ph2}\"", f"PhoneInfoga → {ph2}")
             else:
-                console.print("[error]phoneinfoga não instalado. Ver: https://github.com/sundowndev/phoneinfoga[/error]")
-                open_url("https://github.com/sundowndev/phoneinfoga", "PhoneInfoga GitHub")
+                console.print("[error]phoneinfoga não instalado.[/error]")
+                console.print("[dim_green]  Instalação manual: https://github.com/sundowndev/phoneinfoga/releases[/dim_green]")
+                if Confirm.ask("  Abrir página de instalação no browser?"):
+                    open_url("https://github.com/sundowndev/phoneinfoga/releases", "PhoneInfoga releases")
         elif choice == "5":
             open_url("https://numverify.com/", "NumVerify")
         elif choice == "0":
@@ -683,10 +715,8 @@ def menu_geo():
             open_url("https://what3words.com/", "What3Words")
         elif choice == "B":
             filepath = Prompt.ask("  Caminho para a imagem (ex: /home/kali/foto.jpg)")
-            if tool_exists("exiftool"):
+            if require_tool("exiftool"):
                 run_cmd(f"exiftool '{filepath}' | grep -i gps", f"ExifTool GPS → {filepath}")
-            else:
-                console.print("[error]exiftool não instalado: sudo apt install libimage-exiftool-perl[/error]")
         elif choice == "0":
             break
         else:
@@ -822,10 +852,8 @@ def menu_metadados():
 
         if choice == "1":
             filepath = Prompt.ask("  Caminho para o ficheiro")
-            if tool_exists("exiftool"):
+            if require_tool("exiftool"):
                 run_cmd(f"exiftool '{filepath}'", f"ExifTool → {filepath}")
-            else:
-                console.print("[error]exiftool não instalado: sudo apt install libimage-exiftool-perl[/error]")
         elif choice == "2":
             url = Prompt.ask("  URL", default=f"https://{current_target['domain']}" if current_target['domain'] else "")
             open_url(f"https://web.archive.org/web/*/{url}", "Wayback Machine")
@@ -840,10 +868,8 @@ def menu_metadados():
             open_url("https://odcrawler.xyz/", "ODCrawler .onion")
         elif choice == "7":
             d2 = require_target("domain")
-            if tool_exists("waybackurls"):
+            if require_tool("waybackurls"):
                 run_cmd(f"waybackurls {d2} | tee ~/argus_sessions/waybackurls_{d2}.txt", f"Waybackurls → {d2}")
-            else:
-                console.print("[error]waybackurls não instalado: go install github.com/tomnomnom/waybackurls@latest[/error]")
         elif choice == "0":
             break
         else:
@@ -879,16 +905,12 @@ def menu_breaches():
             open_url("https://haveibeenpwned.com/DomainSearch", "HIBP domínio")
         elif choice == "3":
             e2 = require_target("email")
-            if tool_exists("h8mail"):
+            if require_tool("h8mail"):
                 run_cmd(f"h8mail -t {e2}", f"H8mail → {e2}")
-            else:
-                console.print("[error]h8mail não instalado: pip3 install h8mail --break-system-packages[/error]")
         elif choice == "4":
             e2 = require_target("email")
-            if tool_exists("holehe"):
+            if require_tool("holehe"):
                 run_cmd(f"holehe {e2}", f"Holehe → {e2}")
-            else:
-                console.print("[error]holehe não instalado: pip3 install holehe --break-system-packages[/error]")
         elif choice == "5":
             open_url("https://intelx.io/", "IntelX")
         elif choice == "6":
@@ -1014,35 +1036,73 @@ def menu_principal():
 
         console.print()
 
-        menus = [
-            ("T", "Definir Alvo",                    "Configura domínio, IP, username, email, telefone, nome e NIF"),
-            ("─", "", ""),
-            ("A", "Domínios / Empresas / DNS",        "WHOIS, dig, subfinder, amass, theHarvester, crt.sh"),
-            ("B", "Pessoas / Usernames / Identidade", "Sherlock, Maigret, Holehe, H8mail, Radaris, OSINT Industries"),
-            ("C", "IPs / Infraestrutura",             "Nmap, WHOIS IP, Shodan, Censys, AbuseIPDB, VirusTotal"),
-            ("D", "Redes Sociais",                    "Twitter, Instagram, Facebook, LinkedIn, TikTok, Reddit"),
-            ("E", "Equipamentos / IoT / Shodan",      "Shodan queries, câmeras, routers, ICS/SCADA, WiGLE, GPSJam"),
-            ("F", "Telefone / Identificação",         "Truecaller, Sync.me, SpyDialer, PhoneInfoga"),
-            ("G", "Geolocalização / Mapas",           "Google Earth, WiGLE, GPSJam, SunCalc, ExifTool GPS"),
-            ("H", "🇵🇹 Portugal Específico",           "NIF lookup, CC, Ubikron, RACIUS, Transparência.pt"),
-            ("I", "Google Dorks",                     "GHDB, DorkGPT, dorks automáticos por categoria"),
-            ("J", "Metadados / Arquivos / Histórico", "ExifTool, Wayback Machine, Arquivo.pt, ODCrawler"),
-            ("K", "Breaches / Fugas de Dados",        "HIBP, H8mail, Holehe, IntelX, DeHashed, LeakIX"),
-            ("L", "Recursos / Referências",           "OSINT Framework, Bellingcat, FlightAware, MarineTraffic"),
-            ("─", "", ""),
-            ("M", "Configurações / API Keys",         "Shodan, Censys, HIBP, ZoomEye"),
-            ("S", "Guardar Sessão",                   "Exporta o log completo da sessão para JSON"),
-            ("0", "Sair",                             ""),
-        ]
+        # ── Grupo: Alvo ──
+        console.print(Align.center("[bold green]─────────────────────────────────────────────────────[/bold green]"))
+        console.print(Align.center("[bold green]  🎯  ALVO  [/bold green]"))
+        console.print(Align.center("[bold green]─────────────────────────────────────────────────────[/bold green]"))
+        console.print()
+        console.print(f"  [key][T][/key]  [desc]Definir Alvo[/desc]  [subdesc]Domínio, IP, Username, Email, Telefone, Nome, NIF[/subdesc]")
 
-        for key, label, hint in menus:
-            if key == "─":
-                console.print(f"  [separator]{'─' * 58}[/separator]")
-            elif key == "0":
-                console.print(f"  [key][{key}][/key]  [desc]{label}[/desc]")
-            else:
-                console.print(f"  [key][{key}][/key]  [desc]{label}[/desc]  [subdesc]{hint}[/subdesc]")
+        console.print()
+        console.print(Align.center("[bold green]─────────────────────────────────────────────────────[/bold green]"))
+        console.print(Align.center("[bold green]  🔍  RECONHECIMENTO  [/bold green]"))
+        console.print(Align.center("[bold green]─────────────────────────────────────────────────────[/bold green]"))
+        console.print()
+        console.print(f"  [key][A][/key]  [desc]Domínios / Empresas / DNS[/desc]")
+        console.print(f"       [subdesc]WHOIS, dig, subfinder, amass, theHarvester, crt.sh, AXFR[/subdesc]")
+        console.print()
+        console.print(f"  [key][B][/key]  [desc]Pessoas / Usernames / Identidade[/desc]")
+        console.print(f"       [subdesc]Sherlock, Maigret, Holehe, H8mail, Radaris, OSINT Industries[/subdesc]")
+        console.print()
+        console.print(f"  [key][C][/key]  [desc]IPs / Infraestrutura[/desc]")
+        console.print(f"       [subdesc]Nmap, Shodan CLI+web, Censys, BGP.tools, AbuseIPDB, VirusTotal[/subdesc]")
+        console.print()
+        console.print(f"  [key][D][/key]  [desc]Redes Sociais[/desc]")
+        console.print(f"       [subdesc]Twitter, Instagram, Facebook, LinkedIn, TikTok, Reddit, GitHub[/subdesc]")
+        console.print()
+        console.print(f"  [key][E][/key]  [desc]Equipamentos / IoT / Shodan[/desc]")
+        console.print(f"       [subdesc]Shodan queries+dashboard, câmeras, routers, ICS/SCADA, BinaryEdge, Onyphe[/subdesc]")
+        console.print()
+        console.print(f"  [key][F][/key]  [desc]Telefone / Identificação[/desc]")
+        console.print(f"       [subdesc]Truecaller, Sync.me, SpyDialer, PhoneInfoga, NumVerify[/subdesc]")
+        console.print()
+        console.print(f"  [key][G][/key]  [desc]Geolocalização / Mapas[/desc]")
+        console.print(f"       [subdesc]Google Earth, WiGLE, GPSJam, SunCalc, ExifTool GPS, What3Words[/subdesc]")
+        console.print()
+        console.print(f"  [key][H][/key]  [desc]🇵🇹 Portugal Específico[/desc]")
+        console.print(f"       [subdesc]NIF lookup, CC, Ubikron, Registo Comercial, RACIUS, Transparência.pt[/subdesc]")
 
+        console.print()
+        console.print(Align.center("[bold green]─────────────────────────────────────────────────────[/bold green]"))
+        console.print(Align.center("[bold green]  🛠️  TÉCNICAS  [/bold green]"))
+        console.print(Align.center("[bold green]─────────────────────────────────────────────────────[/bold green]"))
+        console.print()
+        console.print(f"  [key][I][/key]  [desc]Google Dorks[/desc]")
+        console.print(f"       [subdesc]Exploit-DB GHDB, DorkGPT, DorkSearch, dorks automáticos por categoria[/subdesc]")
+        console.print()
+        console.print(f"  [key][J][/key]  [desc]Metadados / Arquivos / Histórico[/desc]")
+        console.print(f"       [subdesc]ExifTool, Wayback Machine, Arquivo.pt, ODCrawler, Waybackurls[/subdesc]")
+        console.print()
+        console.print(f"  [key][K][/key]  [desc]Breaches / Fugas de Dados[/desc]")
+        console.print(f"       [subdesc]HaveIBeenPwned, H8mail, Holehe, IntelX, DeHashed, LeakIX[/subdesc]")
+
+        console.print()
+        console.print(Align.center("[bold green]─────────────────────────────────────────────────────[/bold green]"))
+        console.print(Align.center("[bold green]  📚  RECURSOS  [/bold green]"))
+        console.print(Align.center("[bold green]─────────────────────────────────────────────────────[/bold green]"))
+        console.print()
+        console.print(f"  [key][L][/key]  [desc]Recursos / Ferramentas[/desc]")
+        console.print(f"       [subdesc]Maltego, Spiderfoot, Recon-ng, OSINT Framework, Bellingcat, Hunter.io...[/subdesc]")
+
+        console.print()
+        console.print(Align.center("[bold green]─────────────────────────────────────────────────────[/bold green]"))
+        console.print(Align.center("[bold green]  ⚙️  SISTEMA  [/bold green]"))
+        console.print(Align.center("[bold green]─────────────────────────────────────────────────────[/bold green]"))
+        console.print()
+        console.print(f"  [key][M][/key]  [desc]Configurações / API Keys[/desc]  [subdesc]Shodan, Censys, HIBP, ZoomEye[/subdesc]")
+        console.print(f"  [key][?][/key]  [desc]Estado das Ferramentas CLI[/desc]  [subdesc]Verifica quais ferramentas estão instaladas[/subdesc]")
+        console.print(f"  [key][S][/key]  [desc]Guardar Sessão[/desc]  [subdesc]Exporta o log completo para JSON[/subdesc]")
+        console.print(f"  [key][0][/key]  [desc]Sair[/desc]")
         console.print()
         choice = Prompt.ask("[bold green]ARGUS ▶[/bold green]").strip().upper()
 
@@ -1084,15 +1144,15 @@ TOOLS_LIST = [
     ("theharvester",   "theHarvester",   "sudo apt install theharvester"),
     ("amass",          "Amass",          "sudo apt install amass"),
     ("subfinder",      "Subfinder",      "go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"),
-    ("sherlock",       "Sherlock",       "pip3 install sherlock-project --break-system-packages"),
-    ("maigret",        "Maigret",        "pip3 install maigret --break-system-packages"),
-    ("holehe",         "Holehe",         "pip3 install holehe --break-system-packages"),
-    ("h8mail",         "H8mail",         "pip3 install h8mail --break-system-packages"),
+    ("sherlock",       "Sherlock",       "sudo apt install sherlock"),
+    ("maigret",        "Maigret",        "pipx install maigret"),
+    ("holehe",         "Holehe",         "pipx install holehe"),
+    ("h8mail",         "H8mail",         "sudo apt install h8mail"),
     ("shodan",         "Shodan CLI",     "pip3 install shodan --break-system-packages"),
     ("exiftool",       "ExifTool",       "sudo apt install libimage-exiftool-perl"),
     ("waybackurls",    "Waybackurls",    "go install github.com/tomnomnom/waybackurls@latest"),
-    ("phoneinfoga",    "PhoneInfoga",    "https://github.com/sundowndev/phoneinfoga"),
-    ("twint",          "Twint",          "pip3 install twint --break-system-packages"),
+    ("phoneinfoga",    "PhoneInfoga",    "Ver: https://github.com/sundowndev/phoneinfoga/releases"),
+    ("twint",          "Twint",          "sudo apt install twint  # descontinuado, pode falhar"),
     ("traceroute",     "Traceroute",     "sudo apt install traceroute"),
     ("whois",          "Whois",          "sudo apt install whois"),
 ]
@@ -1135,10 +1195,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         arg = sys.argv[1].lower()
         if arg in ("--status", "-s"):
-            # Mostra estado das ferramentas sem entrar no menu
-            clear()
-            console.print(BANNER)
-            console.print(Rule(style="green dim"))
+            show_banner()
             menu_ferramentas()
             sys.exit(0)
         elif arg in ("--help", "-h"):
@@ -1176,36 +1233,51 @@ if __name__ == "__main__":
                                     border_style="green dim", padding=(0, 2)))
             console.print()
 
-            menus = [
-                ("T", "Definir Alvo",                    "Configura domínio, IP, username, email, telefone, nome e NIF"),
-                ("─", "", ""),
-                ("A", "Domínios / Empresas / DNS",        "WHOIS, dig, subfinder, amass, theHarvester, crt.sh"),
-                ("B", "Pessoas / Usernames / Identidade", "Sherlock, Maigret, Holehe, H8mail, Radaris, OSINT Industries"),
-                ("C", "IPs / Infraestrutura",             "Nmap, WHOIS IP, Shodan, Censys, AbuseIPDB, VirusTotal"),
-                ("D", "Redes Sociais",                    "Twitter, Instagram, Facebook, LinkedIn, TikTok, Reddit"),
-                ("E", "Equipamentos / IoT / Shodan",      "Shodan queries, câmeras, routers, ICS/SCADA, WiGLE, GPSJam"),
-                ("F", "Telefone / Identificação",         "Truecaller, Sync.me, SpyDialer, PhoneInfoga"),
-                ("G", "Geolocalização / Mapas",           "Google Earth, WiGLE, GPSJam, SunCalc, ExifTool GPS"),
-                ("H", "🇵🇹 Portugal Específico",           "NIF lookup, CC, Ubikron, RACIUS, Transparência.pt"),
-                ("I", "Google Dorks",                     "GHDB, DorkGPT, dorks automáticos por categoria"),
-                ("J", "Metadados / Arquivos / Histórico", "ExifTool, Wayback Machine, Arquivo.pt, ODCrawler"),
-                ("K", "Breaches / Fugas de Dados",        "HIBP, H8mail, Holehe, IntelX, DeHashed, LeakIX"),
-                ("L", "Recursos / Referências",           "OSINT Framework, Bellingcat, FlightAware, MarineTraffic"),
-                ("─", "", ""),
-                ("M", "Configurações / API Keys",         "Shodan, Censys, HIBP, ZoomEye"),
-                ("?", "Estado das Ferramentas CLI",       "Verifica quais ferramentas estão instaladas"),
-                ("S", "Guardar Sessão",                   "Exporta o log completo da sessão para JSON"),
-                ("0", "Sair",                             ""),
-            ]
+            console.print()
 
-            for key, label, hint in menus:
-                if key == "─":
-                    console.print(f"  [separator]{'─' * 58}[/separator]")
-                elif key == "0":
-                    console.print(f"  [key][{key}][/key]  [desc]{label}[/desc]")
-                else:
-                    console.print(f"  [key][{key}][/key]  [desc]{label}[/desc]  [subdesc]{hint}[/subdesc]")
+            def grp(title):
+                console.print(Align.center(f"[bold green]─────────────────────────────────────────────────────[/bold green]"))
+                console.print(Align.center(f"[bold green]  {title}  [/bold green]"))
+                console.print(Align.center(f"[bold green]─────────────────────────────────────────────────────[/bold green]"))
+                console.print()
 
+            def opt(key, name, hint):
+                console.print(f"  [key][{key}][/key]  [desc]{name}[/desc]")
+                if hint:
+                    console.print(f"       [subdesc]{hint}[/subdesc]")
+                console.print()
+
+            # ── ALVO ──
+            grp("🎯  ALVO")
+            opt("T", "Definir Alvo", "Domínio, IP, Username, Email, Telefone, Nome, NIF")
+
+            # ── RECONHECIMENTO ──
+            grp("🔍  RECONHECIMENTO")
+            opt("A", "Domínios / Empresas / DNS",        "WHOIS, dig, subfinder, amass, theHarvester, crt.sh, AXFR")
+            opt("B", "Pessoas / Usernames / Identidade", "Sherlock, Maigret, Holehe, H8mail, Radaris, OSINT Industries")
+            opt("C", "IPs / Infraestrutura",             "Nmap, Shodan CLI+web, Censys, BGP.tools, AbuseIPDB, VirusTotal")
+            opt("D", "Redes Sociais",                    "Twitter, Instagram, Facebook, LinkedIn, TikTok, Reddit, GitHub")
+            opt("E", "Equipamentos / IoT / Shodan",      "Shodan queries+dashboard, câmeras, routers, ICS/SCADA, BinaryEdge, Onyphe")
+            opt("F", "Telefone / Identificação",         "Truecaller, Sync.me, SpyDialer, PhoneInfoga, NumVerify")
+            opt("G", "Geolocalização / Mapas",           "Google Earth, WiGLE, GPSJam, SunCalc, ExifTool GPS, What3Words")
+            opt("H", "🇵🇹 Portugal Específico",           "NIF lookup, CC, Ubikron, Registo Comercial, RACIUS, Transparência.pt")
+
+            # ── TÉCNICAS ──
+            grp("🛠️  TÉCNICAS")
+            opt("I", "Google Dorks",                     "Exploit-DB GHDB, DorkGPT, DorkSearch, dorks automáticos por categoria")
+            opt("J", "Metadados / Arquivos / Histórico", "ExifTool, Wayback Machine, Arquivo.pt, ODCrawler, Waybackurls")
+            opt("K", "Breaches / Fugas de Dados",        "HaveIBeenPwned, H8mail, Holehe, IntelX, DeHashed, LeakIX")
+
+            # ── RECURSOS ──
+            grp("📚  RECURSOS")
+            opt("L", "Recursos / Ferramentas",           "Maltego, Spiderfoot, Recon-ng, OSINT Framework, Bellingcat, Hunter.io...")
+
+            # ── SISTEMA ──
+            grp("⚙️  SISTEMA")
+            opt("M", "Configurações / API Keys",         "Shodan, Censys, HIBP, ZoomEye")
+            opt("?", "Estado das Ferramentas CLI",       "Verifica quais ferramentas estão instaladas")
+            opt("S", "Guardar Sessão",                   "Exporta o log completo da sessão para JSON")
+            console.print(f"  [key][0][/key]  [desc]Sair[/desc]")
             console.print()
             choice = Prompt.ask("[bold green]ARGUS ▶[/bold green]").strip().upper()
 
