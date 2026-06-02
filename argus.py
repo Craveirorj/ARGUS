@@ -370,39 +370,75 @@ def menu_pessoas():
         n = current_target["name"] or "[dim]não definido[/dim]"
         console.print(f"  Username: [target]{u}[/target]  |  Email: [target]{e}[/target]  |  Nome: [target]{n}[/target]\n")
 
-        print_option("1", "Maigret",           "Constrói perfil completo de identidade: foto, bio, links cruzados entre plataformas", "maigret")
-        print_option("2", "Radaris",           "Background check: histórico de endereços, familiares, processos judiciais", "web")
-        print_option("3", "FastPeopleSearch",  "Pesquisa de pessoas por nome, morada ou número de telefone", "web")
-        print_option("4", "People Search",     "Agregador de informação pública sobre pessoas", "web")
-        print_option("5", "OSINT Industries",  "Plataforma all-in-one: email, username, telefone, IP numa só pesquisa", "web")
-        print_option("6", "Datagma",           "Enriquecimento de dados: empresa, cargo, perfis a partir de email", "web")
-        print_option("7", "OSINTgram",         "Extrai seguidores, posts, geotags e metadados de perfis Instagram", "web")
-        print_option("8", "BehindTheName",     "Gerador de identidades fictícias para criação de personas OSINT", "web")
-        print_option("0", "← Voltar",          "", "")
+        console.print(f"  [bold green]── Ferramentas OSINT ──[/bold green]\n")
+        print_option("1", "Maigret",            "Constrói perfil completo de identidade: foto, bio, links cruzados entre plataformas", "maigret")
+        print_option("2", "OSINT Industries",   "Plataforma all-in-one: email, username, telefone, IP numa só pesquisa", "web")
+        print_option("3", "Datagma",            "Enriquecimento de dados: empresa, cargo, perfis a partir de email", "web")
+        print_option("4", "OSINTgram",          "Extrai seguidores, posts, geotags e metadados de perfis Instagram", "web")
+        print_option("5", "BehindTheName",      "Gerador de identidades fictícias para criação de personas OSINT", "web")
+
+        console.print(f"\n  [bold green]── Background Check (People Search) ──[/bold green]\n")
+        print_option("6", "Radaris",            "Background check: histórico de endereços, familiares, processos judiciais", "web")
+        print_option("7", "FastPeopleSearch",   "Pesquisa gratuita por nome, morada ou telefone — resultados detalhados", "web")
+        print_option("8", "People Search",      "Agregador de registos públicos: endereços, telefones, redes sociais", "web")
+        print_option("9", "Spokeo",             "Pesquisa por nome, email, telefone ou morada — registos detalhados EUA", "web")
+        print_option("A", "BeenVerified",       "Background check completo: criminal, emprego, redes sociais, veículos", "web")
+        print_option("B", "TruthFinder",        "Acesso a 350M+ registos públicos: histórico criminal, endereços, parentes", "web")
+        print_option("C", "Intelius",           "Pesquisa profissional: emprego, educação, histórico de moradas", "web")
+        print_option("D", "Instant Checkmate",  "Registos criminais, tráfego, endereços e redes sociais nos EUA", "web")
+        print_option("E", "Social Catfish",     "Verificação de identidade digital: imagem reversa, username, catfishing", "web")
+        print_option("F", "CocoFinder",         "Pesquisa global de pessoas por nome ou email — inclui registos internacionais", "web")
+        print_option("G", "US Search",          "Pesquisa de pessoas nos EUA: endereços, telefones, registos públicos", "web")
+        print_option("H", "Pipl",               "Motor de pesquisa de identidade: agrega dados de múltiplas fontes públicas", "web")
+        print_option("0", "← Voltar",           "", "")
         console.print()
 
         choice = Prompt.ask("[prompt]Opção[/prompt]").strip().upper()
+        n2 = current_target.get("name", "") or ""
 
         if choice == "1":
             u2 = require_target("username")
             if require_tool("maigret"):
                 run_cmd(f"maigret {u2} --html --folderoutput ~/argus_sessions/", f"Maigret → {u2}")
         elif choice == "2":
+            open_url("https://app.osint.industries/", "OSINT Industries")
+        elif choice == "3":
+            open_url("https://app.datagma.com/", "Datagma")
+        elif choice == "4":
+            open_url("https://github.com/Datalux/Osintgram", "OSINTgram GitHub")
+        elif choice == "5":
+            open_url("https://www.behindthename.com/random/", "BehindTheName")
+        elif choice == "6":
             n2 = require_target("name")
             open_url(f"https://radaris.com/p/{n2.replace(' ', '-')}", "Radaris")
-        elif choice == "3":
+        elif choice == "7":
             n2 = require_target("name")
             open_url(f"https://fastpeoplesearch.ai/name/{n2.replace(' ', '-')}", "FastPeopleSearch")
-        elif choice == "4":
-            open_url("https://people-search.net/", "People Search")
-        elif choice == "5":
-            open_url("https://app.osint.industries/", "OSINT Industries")
-        elif choice == "6":
-            open_url("https://app.datagma.com/", "Datagma")
-        elif choice == "7":
-            open_url("https://github.com/Datalux/Osintgram", "OSINTgram GitHub")
         elif choice == "8":
-            open_url("https://www.behindthename.com/random/", "BehindTheName")
+            open_url("https://people-search.net/", "People Search")
+        elif choice == "9":
+            n2 = require_target("name")
+            open_url(f"https://www.spokeo.com/search?q={n2.replace(' ', '+')}", "Spokeo")
+        elif choice == "A":
+            n2 = require_target("name")
+            open_url(f"https://www.beenverified.com/people/{n2.replace(' ', '-')}", "BeenVerified")
+        elif choice == "B":
+            n2 = require_target("name")
+            open_url(f"https://www.truthfinder.com/people-search/?firstName={n2.split()[0] if n2 else ''}&lastName={n2.split()[-1] if n2 else ''}", "TruthFinder")
+        elif choice == "C":
+            n2 = require_target("name")
+            open_url(f"https://www.intelius.com/people-search/", "Intelius")
+        elif choice == "D":
+            open_url("https://www.instantcheckmate.com/", "Instant Checkmate")
+        elif choice == "E":
+            open_url("https://socialcatfish.com/", "Social Catfish")
+        elif choice == "F":
+            n2 = require_target("name")
+            open_url(f"https://cocofinder.com/people?name={n2.replace(' ', '+')}", "CocoFinder")
+        elif choice == "G":
+            open_url("https://www.ussearch.com/", "US Search")
+        elif choice == "H":
+            open_url("https://pipl.com/", "Pipl")
         elif choice == "0":
             break
         else:
