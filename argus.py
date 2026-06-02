@@ -960,6 +960,86 @@ def menu_breaches():
         if choice != "0":
             pause()
 
+
+# ──────────────────────────────────────────────────────────
+#  N. OPSEC / ANONIMATO / EXPOSIÇÃO
+# ──────────────────────────────────────────────────────────
+def menu_opsec():
+    while True:
+        section_header("N.  OPSEC / ANONIMATO / EXPOSIÇÃO", "Verifica o que expões e analisa o teu perfil de risco")
+
+        console.print(f"  [bold green]── Fingerprinting & Browser ──[/bold green]\n")
+        print_option("1", "DeviceInfo.me",        "Análise completa do browser: IP, GPS, Canvas, WebRTC, GPU, plugins, RAM, TLS", "web")
+        print_option("2", "BrowserLeaks",         "Testes de fugas: WebRTC, Canvas, Font, geolocalização, IPv6", "web")
+        print_option("3", "coveryourtracks.eff.org","EFF: verifica se o teu browser tem fingerprint único e rastreável", "web")
+        print_option("4", "AmIUnique",             "Analisa a unicidade do teu browser fingerprint em base de dados global", "web")
+        print_option("5", "Whoer.net",             "Anonimato online: IP, DNS leaks, VPN/proxy/Tor detection, score", "web")
+
+        console.print(f"\n  [bold green]── IP / DNS / VPN Leaks ──[/bold green]\n")
+        print_option("6", "IPLeak.net",            "Verifica fugas de IP, DNS, WebRTC e geolocalização simultâneas", "web")
+        print_option("7", "DNSLeakTest",           "Testa se o teu DNS está a vazar fora da VPN", "web")
+        print_option("8", "Mullvad Check",         "Verificação completa de VPN: DNS, IPv6, WebRTC leaks", "web")
+        print_option("9", "WhatIsMyIPAddress",     "IP público, ISP, geolocalização e blacklist check", "web")
+        print_option("A", "IPinfo.io – o meu IP",  "Informação detalhada sobre o teu IP actual: ASN, org, localização", "web")
+
+        console.print(f"\n  [bold green]── Email & Identidade ──[/bold green]\n")
+        print_option("B", "Have I Been Pwned",     "Verifica se o teu email aparece em fugas de dados conhecidas", "web")
+        print_option("C", "Email Header Analyser", "Analisa cabeçalhos de email: rota, IPs, autenticação SPF/DKIM", "web")
+        print_option("D", "Temp Mail",             "Cria endereço de email temporário para registos anónimos", "web")
+        print_option("E", "10 Minute Mail",        "Email descartável com expiração automática em 10 minutos", "web")
+
+        console.print(f"\n  [bold green]── Verificação de Anonimato ──[/bold green]\n")
+        print_option("F", "Tor Check",             "Verifica se estás a aceder através da rede Tor", "web")
+        print_option("G", "BlacklistChecker",      "Verifica se o teu IP está em listas negras de spam/abuso", "web")
+        print_option("H", "OSINT Dojo",            "Recursos e exercícios para melhorar OPSEC em investigações", "web")
+        print_option("0", "← Voltar",              "", "")
+        console.print()
+
+        choice = Prompt.ask("[prompt]Opção[/prompt]").strip().upper()
+
+        if choice == "1":
+            open_url("https://www.deviceinfo.me/", "DeviceInfo.me")
+        elif choice == "2":
+            open_url("https://browserleaks.com/", "BrowserLeaks")
+        elif choice == "3":
+            open_url("https://coveryourtracks.eff.org/", "Cover Your Tracks – EFF")
+        elif choice == "4":
+            open_url("https://amiunique.org/", "AmIUnique")
+        elif choice == "5":
+            open_url("https://whoer.net/", "Whoer.net")
+        elif choice == "6":
+            open_url("https://ipleak.net/", "IPLeak.net")
+        elif choice == "7":
+            open_url("https://www.dnsleaktest.com/", "DNSLeakTest")
+        elif choice == "8":
+            open_url("https://mullvad.net/en/check", "Mullvad Check")
+        elif choice == "9":
+            open_url("https://whatismyipaddress.com/", "WhatIsMyIPAddress")
+        elif choice == "A":
+            open_url("https://ipinfo.io/", "IPinfo – o meu IP")
+        elif choice == "B":
+            e2 = require_target("email")
+            open_url(f"https://haveibeenpwned.com/account/{e2}", "HaveIBeenPwned")
+        elif choice == "C":
+            open_url("https://mxtoolbox.com/EmailHeaders.aspx", "Email Header Analyser")
+        elif choice == "D":
+            open_url("https://temp-mail.org/", "Temp Mail")
+        elif choice == "E":
+            open_url("https://10minutemail.com/", "10 Minute Mail")
+        elif choice == "F":
+            open_url("https://check.torproject.org/", "Tor Check")
+        elif choice == "G":
+            ip2 = require_target("ip")
+            open_url(f"https://mxtoolbox.com/blacklists.aspx?ip={ip2}", "Blacklist Checker")
+        elif choice == "H":
+            open_url("https://www.osintdojo.com/", "OSINT Dojo")
+        elif choice == "0":
+            break
+        else:
+            console.print("[error]Opção inválida.[/error]")
+        if choice != "0":
+            pause()
+
 # ──────────────────────────────────────────────────────────
 #  L. RECURSOS / REFERÊNCIAS
 # ──────────────────────────────────────────────────────────
@@ -1254,7 +1334,7 @@ if __name__ == "__main__":
             "C": menu_ips, "D": menu_social, "E": menu_equipamentos,
             "F": menu_telefone, "G": menu_geo, "H": menu_portugal,
             "I": menu_dorks, "J": menu_metadados, "K": menu_breaches,
-            "L": menu_recursos, "M": menu_config,
+            "L": menu_recursos, "M": menu_config, "N": menu_opsec,
         }
         while True:
             show_banner()
@@ -1307,6 +1387,10 @@ if __name__ == "__main__":
             # ── RECURSOS ──
             grp("📚  RECURSOS")
             opt("L", "Recursos / Ferramentas",           "Maltego, Spiderfoot, Recon-ng, OSINT Framework, Bellingcat, Hunter.io...")
+
+            # ── OPSEC ──
+            grp("🛡️  OPSEC / ANONIMATO")
+            opt("N", "OPSEC / Anonimato / Exposição",    "DeviceInfo.me, BrowserLeaks, IPLeak, DNSLeakTest, Tor Check, Temp Mail...")
 
             # ── SISTEMA ──
             grp("⚙️  SISTEMA")
