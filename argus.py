@@ -271,26 +271,62 @@ def show_banner():
 #  DEFINIR ALVO
 # ──────────────────────────────────────────────────────────
 def menu_alvo():
-    section_header("🎯  DEFINIR ALVO", "Define os dados do alvo desta sessão")
-    fields = [
-        ("domain",   "Domínio / Empresa    (ex: empresa.pt)"),
-        ("ip",       "IP / Host            (ex: 192.168.1.1)"),
-        ("username", "Username             (ex: joao_silva)"),
-        ("email",    "Email                (ex: joao@empresa.pt)"),
-        ("phone",    "Telemóvel/Telefone   (ex: +351910000000)"),
-        ("name",     "Nome Completo        (ex: João Silva)"),
-        ("nif",      "NIF Português        (ex: 123456789)"),
-    ]
-    for key, label in fields:
-        val = current_target.get(key) or ""
-        current_target[key] = Prompt.ask(f"  [secondary]{label}[/secondary]", default=val) or None
+    while True:
+        section_header("🎯  DEFINIR ALVO", "Define os dados do alvo desta sessão")
 
-    console.print()
-    console.print("[ok]✔ Alvo definido:[/ok]")
-    for k, v in current_target.items():
-        if v:
-            console.print(f"  [dim_green]{k:10}[/dim_green] → [target]{v}[/target]")
-    pause()
+        # Mostrar campos actuais
+        fields = [
+            ("1", "domain",   "Domínio / Empresa",  "ex: empresa.pt"),
+            ("2", "ip",       "IP / Host",           "ex: 192.168.1.1"),
+            ("3", "username", "Username",            "ex: joao_silva"),
+            ("4", "email",    "Email",               "ex: joao@empresa.pt"),
+            ("5", "phone",    "Telefone",            "ex: +351910000000"),
+            ("6", "name",     "Nome Completo",       "ex: João Silva"),
+            ("7", "nif",      "NIF Português",       "ex: 123456789"),
+        ]
+
+        console.print(f"  [dim_green]Escolhe o campo a definir ou [A] para preencher todos:[/dim_green]\n")
+        for num, key, label, exemplo in fields:
+            val = current_target.get(key)
+            val_display = f"[yellow]{val}[/yellow]" if val else f"[dim]não definido[/dim]"
+            console.print(f"  [key][{num}][/key]  [desc]{label:20}[/desc]  {val_display}  [dim_green]({exemplo})[/dim_green]")
+
+        console.print()
+        console.print(f"  [key][A][/key]  [desc]Preencher todos os campos[/desc]")
+        console.print(f"  [key][L][/key]  [desc]Limpar todos os campos[/desc]")
+        console.print(f"  [key][0][/key]  [desc]← Voltar[/desc]")
+        console.print()
+
+        choice = Prompt.ask("[prompt]Opção[/prompt]").strip().upper()
+
+        if choice == "0":
+            break
+        elif choice == "A":
+            # Preencher todos
+            for num, key, label, exemplo in fields:
+                val = current_target.get(key) or ""
+                novo = Prompt.ask(f"  [secondary]{label} ({exemplo})[/secondary]", default=val)
+                current_target[key] = novo.strip() or None
+            console.print()
+            console.print("[ok]✔ Alvo actualizado.[/ok]")
+            pause()
+        elif choice == "L":
+            if Confirm.ask("  Limpar todos os campos do alvo?"):
+                for key in current_target:
+                    current_target[key] = None
+                console.print("[ok]✔ Campos limpos.[/ok]")
+                pause()
+        elif choice in [f[0] for f in fields]:
+            # Editar campo individual
+            field_data = next(f for f in fields if f[0] == choice)
+            _, key, label, exemplo = field_data
+            val = current_target.get(key) or ""
+            novo = Prompt.ask(f"  [secondary]{label} ({exemplo})[/secondary]", default=val)
+            current_target[key] = novo.strip() or None
+            console.print(f"  [ok]✔ {label} definido:[/ok] [yellow]{current_target[key]}[/yellow]")
+            pause()
+        else:
+            console.print("[error]Opção inválida.[/error]")
 
 # ──────────────────────────────────────────────────────────
 #  A. DOMÍNIOS / EMPRESAS / DNS
