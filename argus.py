@@ -11,6 +11,8 @@ import subprocess
 import webbrowser
 import datetime
 import shutil
+import urllib.request
+import urllib.error
 from pathlib import Path
 
 # ──────────────────────────────────────────────────────────
@@ -275,6 +277,452 @@ def require_target(field):
         current_target[field] = val
     return val
 
+# ──────────────────────────────────────────────────────────
+#  MÓDULO DE IA — ARGUS INTELLIGENCE
+# ──────────────────────────────────────────────────────────
+
+AI_PROVIDERS = {
+    "ollama":  {"label": "Ollama (local, gratuito)",       "default_model": "llama3"},
+    "groq":    {"label": "Groq API (cloud, gratuito)",     "default_model": "llama3-70b-8192"},
+    "claude":  {"label": "Claude API (Anthropic, pago)",  "default_model": "claude-opus-4-6"},
+}
+
+AI_LEVELS = {
+    "1": {"label": "Iniciante",   "desc": "Explica tudo, dá comandos completos com cada flag explicada"},
+    "2": {"label": "Intermédio",  "desc": "Sugere vectores, dá comandos, deixa explorar"},
+    "3": {"label": "Avançado",    "desc": "Lista vulnerabilidades e vectores, sem explicações extra"},
+}
+
+# Último output de scan guardado para análise de IA
+last_scan_output = {"content": "", "context": ""}
+
+
+def ai_get_provider():
+    """Devolve o provider de IA configurado, ou pede ao utilizador para configurar."""
+    provider = config.get("ai_provider")
+    if provider and provider in AI_PROVIDERS:
+        return provider
+    return None
+
+
+def ai_get_level():
+    """Devolve o nível configurado (1/2/3), padrão 2."""
+    return config.get("ai_level", "2")
+
+
+def ai_call(prompt, system_prompt=None):
+    """Chama o provider de IA configurado e devolve a resposta como string."""
+    provider = ai_get_provider()
+    if not provider:
+        return None, "Nenhum provider de IA configurado. Vai a [M] → Configurar IA."
+
+    if system_prompt is None:
+        level = ai_get_level()
+        level_info = AI_LEVELS.get(level, AI_LEVELS["2"])
+        system_prompt = (
+            f"És um assistente de OSINT e cibersegurança ofensiva para uso em ambientes controlados e autorizados. "
+            f"Nível do utilizador: {level_info['label']}. "
+            f"Instrução de resposta: {level_info['desc']}. "
+            f"Responde sempre em português europeu. Sê directo e técnico. "
+            f"Usa formatação de terminal: negrito com ** **, listas com -, código com backticks."
+        )
+
+    try:
+        if provider == "ollama":
+            return _ai_ollama(prompt, system_prompt)
+        elif provider == "groq":
+            return _ai_groq(prompt, system_prompt)
+        elif provider == "claude":
+            return _ai_claude(prompt, system_prompt)
+    except Exception as e:
+        return None, f"Erro ao chamar IA: {e}"
+
+    return None, "Provider desconhecido."
+
+
+def _ai_ollama(prompt, system_prompt):
+    """Chama Ollama local."""
+    model = config.get("ai_ollama_model", AI_PROVIDERS["ollama"]["default_model"])
+    payload = json.dumps({
+        "model": model,
+        "prompt": prompt,
+        "system": system_prompt,
+        "stream": False
+    }).encode()
+
+    req = urllib.request.Request(
+        "http://localhost:11434/api/generate",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read().decode())
+            return data.get("response", ""), None
+    except urllib.error.URLError:
+        return None, "Ollama não está a correr. Inicia com: [bold green]ollama serve[/bold green]"
+
+
+def _ai_groq(prompt, system_prompt):
+    """Chama Groq API."""
+    api_key = config.get("api_groq")
+    if not api_key:
+        return None, "Sem API key Groq. Configura em [M] → Configurar IA."
+
+    model = config.get("ai_groq_model", AI_PROVIDERS["groq"]["default_model"])
+    payload = json.dumps({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 1500,
+        "temperature": 0.3
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://api.groq.com/openai/v1/chat/completions",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        },
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode())
+            return data["choices"][0]["message"]["content"], None
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        return None, f"Groq API erro {e.code}: {body[:200]}"
+
+
+def _ai_claude(prompt, system_prompt):
+    """Chama Claude API (Anthropic)."""
+    api_key = config.get("api_claude")
+    if not api_key:
+        return None, "Sem API key Claude. Configura em [M] → Configurar IA."
+
+    model = config.get("ai_claude_model", AI_PROVIDERS["claude"]["default_model"])
+    payload = json.dumps({
+        "model": model,
+        "max_tokens": 1500,
+        "system": system_prompt,
+        "messages": [
+            {"role": "user", "content": prompt}
+        ]
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01"
+        },
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode())
+            return data["content"][0]["text"], None
+    except urllib.error.HTTPError as e:
+        body = e.read().decode()
+        return None, f"Claude API erro {e.code}: {body[:200]}"
+
+
+def ai_analyze_scan(scan_output, context=""):
+    """Analisa o output de um scan e apresenta sugestões de IA."""
+    if not scan_output.strip():
+        console.print("[warning]⚠ Sem output de scan para analisar.[/warning]")
+        return
+
+    provider = ai_get_provider()
+    if not provider:
+        console.print("\n[warning]⚠ IA não configurada. Vai a [M] → Configurar IA para activar.[/warning]")
+        return
+
+    console.print(f"\n[bold green]🤖 ARGUS INTELLIGENCE — A analisar...[/bold green]")
+    console.print(f"[dim_green]Provider: {AI_PROVIDERS[provider]['label']} | Nível: {AI_LEVELS[ai_get_level()]['label']}[/dim_green]\n")
+
+    prompt = f"""Analisa o seguinte output de OSINT/reconhecimento e fornece:
+
+1. **Resumo** do que foi encontrado
+2. **Vulnerabilidades / pontos de interesse** identificados
+3. **Vectores de ataque / investigação recomendados** (por ordem de prioridade)
+4. **Próximos passos** concretos
+
+Contexto adicional: {context or 'Reconhecimento OSINT geral'}
+
+OUTPUT DO SCAN:
+```
+{scan_output[:3000]}
+```
+"""
+
+    response, error = ai_call(prompt)
+
+    if error:
+        console.print(f"[error]✗ {error}[/error]")
+        return
+
+    console.print(Panel(
+        response,
+        title="[bold green]🤖 Análise ARGUS INTELLIGENCE[/bold green]",
+        border_style="green",
+        padding=(1, 2)
+    ))
+
+    # Guardar na sessão
+    log("ai_analysis", {"context": context, "response": response[:500]})
+
+
+def ai_chat_livre():
+    """Chat livre com a IA no contexto do alvo actual."""
+    provider = ai_get_provider()
+    if not provider:
+        console.print("\n[warning]⚠ IA não configurada. Vai a [M] → Configurar IA para activar.[/warning]")
+        pause()
+        return
+
+    section_header("🤖  ARGUS INTELLIGENCE — CHAT", f"Provider: {AI_PROVIDERS[provider]['label']}")
+
+    alvo_ctx = ", ".join(f"{k}={v}" for k, v in current_target.items() if v)
+    console.print(f"  [dim_green]Alvo activo: {alvo_ctx or 'nenhum'}[/dim_green]")
+    console.print(f"  [dim_green]Nível: {AI_LEVELS[ai_get_level()]['label']}[/dim_green]")
+    console.print(f"  [dim_green]Escreve 'sair' para voltar ao menu.[/dim_green]\n")
+
+    while True:
+        pergunta = Prompt.ask("[bold green]Tu ▶[/bold green]").strip()
+        if pergunta.lower() in ("sair", "0", "exit", "quit"):
+            break
+        if not pergunta:
+            continue
+
+        # Adiciona contexto do alvo à pergunta
+        prompt_completo = pergunta
+        if alvo_ctx:
+            prompt_completo = f"[Alvo OSINT actual: {alvo_ctx}]\n\n{pergunta}"
+
+        console.print(f"\n[dim_green]A consultar IA...[/dim_green]")
+        response, error = ai_call(prompt_completo)
+
+        if error:
+            console.print(f"[error]✗ {error}[/error]\n")
+        else:
+            console.print(Panel(
+                response,
+                title="[bold green]🤖 ARGUS INTELLIGENCE[/bold green]",
+                border_style="green dim",
+                padding=(1, 2)
+            ))
+            console.print()
+
+
+def menu_ia():
+    """Menu principal do módulo de IA."""
+    while True:
+        provider = ai_get_provider()
+        provider_label = AI_PROVIDERS[provider]["label"] if provider else "[error]não configurado[/error]"
+        level_label = AI_LEVELS[ai_get_level()]["label"]
+
+        section_header("🤖  ARGUS INTELLIGENCE", f"Provider: {provider_label}  |  Nível: {level_label}")
+
+        console.print(f"  [bold green]── Análise Automática ──[/bold green]\n")
+        print_option("1", "Analisar último scan",     "Analisa o último resultado de scan capturado pela sessão", "")
+        print_option("2", "Analisar texto/output",    "Cola um output manualmente para análise de IA", "")
+
+        console.print(f"\n  [bold green]── Assistência ──[/bold green]\n")
+        print_option("3", "Chat OSINT livre",         f"Faz perguntas sobre o alvo activo e técnicas OSINT", "")
+        print_option("4", "Sugerir dorks para alvo",  "Gera Google Dorks personalizados para o alvo definido", "")
+        print_option("5", "Analisar breach/leak",     "Interpreta resultados de breaches e sugere acções", "")
+        print_option("6", "Relatório de sessão",      "Gera resumo inteligente de toda a sessão actual", "")
+
+        console.print(f"\n  [bold green]── Configuração ──[/bold green]\n")
+        print_option("C", "Configurar IA",            "Escolhe provider (Ollama/Groq/Claude), modelo e nível", "")
+        print_option("0", "← Voltar",                 "", "")
+        console.print()
+
+        choice = Prompt.ask("[prompt]Opção[/prompt]").strip().upper()
+
+        if choice == "1":
+            if last_scan_output["content"]:
+                ai_analyze_scan(last_scan_output["content"], last_scan_output["context"])
+            else:
+                console.print("[warning]⚠ Nenhum scan capturado nesta sessão.[/warning]")
+                console.print("[dim_green]  Usa a opção [2] para colar output manualmente.[/dim_green]")
+            pause()
+
+        elif choice == "2":
+            console.print("\n[dim_green]Cola o output do scan (termina com uma linha contendo apenas '---'):[/dim_green]\n")
+            lines = []
+            while True:
+                line = input()
+                if line.strip() == "---":
+                    break
+                lines.append(line)
+            context = Prompt.ask("  Contexto (ex: nmap scan, WHOIS, theHarvester)", default="scan OSINT")
+            ai_analyze_scan("\n".join(lines), context)
+            pause()
+
+        elif choice == "3":
+            ai_chat_livre()
+
+        elif choice == "4":
+            provider2 = ai_get_provider()
+            if not provider2:
+                console.print("[warning]⚠ IA não configurada.[/warning]")
+                pause()
+                continue
+            alvo = {k: v for k, v in current_target.items() if v}
+            if not alvo:
+                console.print("[warning]⚠ Define um alvo primeiro em [T].[/warning]")
+                pause()
+                continue
+            prompt = f"Gera 10 Google Dorks específicos e eficazes para o alvo: {alvo}. Para cada dork explica o que procura e o que pode revelar."
+            console.print("\n[dim_green]A gerar dorks...[/dim_green]")
+            response, error = ai_call(prompt)
+            if error:
+                console.print(f"[error]✗ {error}[/error]")
+            else:
+                console.print(Panel(response, title="[bold green]🤖 Dorks Gerados por IA[/bold green]", border_style="green", padding=(1, 2)))
+            pause()
+
+        elif choice == "5":
+            provider2 = ai_get_provider()
+            if not provider2:
+                console.print("[warning]⚠ IA não configurada.[/warning]")
+                pause()
+                continue
+            console.print("\n[dim_green]Cola o resultado do breach/leak (termina com '---'):[/dim_green]\n")
+            lines = []
+            while True:
+                line = input()
+                if line.strip() == "---":
+                    break
+                lines.append(line)
+            prompt = f"Analisa este resultado de breach/fuga de dados e indica: credenciais expostas, serviços afectados, risco real e acções imediatas a tomar.\n\n```\n{chr(10).join(lines[:2000])}\n```"
+            console.print("\n[dim_green]A analisar breach...[/dim_green]")
+            response, error = ai_call(prompt)
+            if error:
+                console.print(f"[error]✗ {error}[/error]")
+            else:
+                console.print(Panel(response, title="[bold green]🤖 Análise de Breach[/bold green]", border_style="green", padding=(1, 2)))
+            pause()
+
+        elif choice == "6":
+            provider2 = ai_get_provider()
+            if not provider2:
+                console.print("[warning]⚠ IA não configurada.[/warning]")
+                pause()
+                continue
+            if not session_log:
+                console.print("[warning]⚠ Sessão vazia — sem acções registadas.[/warning]")
+                pause()
+                continue
+            log_resumido = json.dumps(session_log[-30:], ensure_ascii=False, indent=2)
+            alvo_ctx = ", ".join(f"{k}={v}" for k, v in current_target.items() if v)
+            prompt = f"Com base neste log de sessão OSINT (alvo: {alvo_ctx or 'desconhecido'}), gera um relatório executivo em português com: resumo das acções, descobertas principais, pontos de interesse e recomendações.\n\nLOG:\n```\n{log_resumido[:3000]}\n```"
+            console.print("\n[dim_green]A gerar relatório...[/dim_green]")
+            response, error = ai_call(prompt)
+            if error:
+                console.print(f"[error]✗ {error}[/error]")
+            else:
+                ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                report_file = SESSION_DIR / f"argus_ai_report_{ts}.txt"
+                with open(report_file, "w") as f:
+                    f.write(response)
+                console.print(Panel(response, title="[bold green]🤖 Relatório de Sessão[/bold green]", border_style="green", padding=(1, 2)))
+                console.print(f"\n[ok]✔ Relatório guardado em:[/ok] [accent]{report_file}[/accent]")
+            pause()
+
+        elif choice == "C":
+            menu_config_ia()
+
+        elif choice == "0":
+            break
+        else:
+            console.print("[error]Opção inválida.[/error]")
+
+
+def menu_config_ia():
+    """Configuração do provider de IA."""
+    section_header("🤖  CONFIGURAR ARGUS INTELLIGENCE")
+
+    console.print("  [bold green]── Provider de IA ──[/bold green]\n")
+    for key, info in AI_PROVIDERS.items():
+        current_mark = " [ok]◀ actual[/ok]" if config.get("ai_provider") == key else ""
+        console.print(f"  [key][{list(AI_PROVIDERS.keys()).index(key)+1}][/key]  [desc]{info['label']}[/desc]{current_mark}")
+    console.print()
+
+    p_choice = Prompt.ask("  Escolhe provider", choices=["1", "2", "3"], default="1")
+    provider_key = list(AI_PROVIDERS.keys())[int(p_choice) - 1]
+    config["ai_provider"] = provider_key
+    console.print(f"  [ok]✔ Provider: {AI_PROVIDERS[provider_key]['label']}[/ok]\n")
+
+    # Configurar API key se necessário
+    if provider_key == "ollama":
+        model = Prompt.ask("  Modelo Ollama", default=config.get("ai_ollama_model", "llama3"))
+        config["ai_ollama_model"] = model
+        console.print(f"\n  [dim_green]Para instalar o modelo: [bold green]ollama pull {model}[/bold green][/dim_green]")
+        console.print(f"  [dim_green]Para iniciar o Ollama:  [bold green]ollama serve[/bold green][/dim_green]")
+
+    elif provider_key == "groq":
+        console.print("  [dim_green]Cria conta gratuita em: https://console.groq.com/[/dim_green]")
+        key = Prompt.ask("  API Key Groq", default=config.get("api_groq", ""), password=True)
+        if key:
+            config["api_groq"] = key
+        model = Prompt.ask("  Modelo Groq", default=config.get("ai_groq_model", "llama3-70b-8192"))
+        config["ai_groq_model"] = model
+
+    elif provider_key == "claude":
+        console.print("  [dim_green]API key em: https://console.anthropic.com/[/dim_green]")
+        key = Prompt.ask("  API Key Claude", default=config.get("api_claude", ""), password=True)
+        if key:
+            config["api_claude"] = key
+        model = Prompt.ask("  Modelo Claude", default=config.get("ai_claude_model", "claude-opus-4-6"))
+        config["ai_claude_model"] = model
+
+    # Nível do utilizador
+    console.print(f"\n  [bold green]── Nível do Utilizador ──[/bold green]\n")
+    for k, v in AI_LEVELS.items():
+        current_mark = " [ok]◀ actual[/ok]" if config.get("ai_level", "2") == k else ""
+        console.print(f"  [key][{k}][/key]  [desc]{v['label']}[/desc]  [subdesc]{v['desc']}[/subdesc]{current_mark}")
+    console.print()
+
+    level = Prompt.ask("  Escolhe nível", choices=["1", "2", "3"], default=config.get("ai_level", "2"))
+    config["ai_level"] = level
+
+    save_config(config)
+    console.print(f"\n[ok]✔ IA configurada: {AI_PROVIDERS[provider_key]['label']} | Nível: {AI_LEVELS[level]['label']}[/ok]")
+    pause()
+
+
+def _run_cmd_capture(cmd, description="A executar..."):
+    """Executa um comando, mostra output E captura para análise de IA."""
+    console.print(f"\n[primary]▶ {description}[/primary]")
+    console.print(f"[dim_green]$ {cmd}[/dim_green]\n")
+    log(description, cmd)
+
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    output = result.stdout + result.stderr
+
+    # Mostrar output no terminal
+    if output:
+        console.print(output)
+
+    # Guardar para análise de IA
+    last_scan_output["content"] = output
+    last_scan_output["context"] = description
+
+    # Indicar que está disponível para IA
+    if output and ai_get_provider():
+        console.print(f"\n[dim_green]💡 Output capturado. Usa [O] → Analisar com IA para interpretar resultados.[/dim_green]")
+
+
 def section_header(title, subtitle=""):
     clear()
     console.print()
@@ -458,18 +906,18 @@ def menu_dominios():
         d = require_target("domain") if choice != "0" else None
 
         if choice == "1":
-            run_cmd(f"whois {d}", f"WHOIS → {d}")
+            _run_cmd_capture(f"whois {d}", f"WHOIS → {d}")
         elif choice == "2":
-            run_cmd(f"dig ANY {d} +noall +answer", f"DNS ANY → {d}")
+            _run_cmd_capture(f"dig ANY {d} +noall +answer", f"DNS ANY → {d}")
         elif choice == "3":
             if require_tool("subfinder"):
-                run_cmd(f"subfinder -d {d} -silent", f"Subfinder → {d}")
+                _run_cmd_capture(f"subfinder -d {d} -silent", f"Subfinder → {d}")
         elif choice == "4":
             if require_tool("amass"):
-                run_cmd(f"amass enum -passive -d {d}", f"Amass → {d}")
+                _run_cmd_capture(f"amass enum -passive -d {d}", f"Amass → {d}")
         elif choice == "5":
             if tool_exists("theHarvester") or require_tool("theharvester"):
-                run_cmd(f"theHarvester -d {d} -b all", f"theHarvester → {d}")
+                _run_cmd_capture(f"theHarvester -d {d} -b all", f"theHarvester → {d}")
         elif choice == "6":
             if require_tool("dnsx"):
                 run_cmd(f"subfinder -d {d} -silent | dnsx -silent", f"dnsx → {d}")
@@ -631,21 +1079,21 @@ def menu_ips():
         ip2 = require_target("ip") if choice != "0" else None
 
         if choice == "1":
-            run_cmd(f"whois {ip2}", f"WHOIS IP → {ip2}")
+            _run_cmd_capture(f"whois {ip2}", f"WHOIS IP → {ip2}")
         elif choice == "2":
-            run_cmd(f"nmap -T4 {ip2}", f"Nmap básico → {ip2}")
+            _run_cmd_capture(f"nmap -T4 {ip2}", f"Nmap básico → {ip2}")
         elif choice == "3":
-            run_cmd(f"nmap -sC -sV -T4 {ip2}", f"Nmap completo → {ip2}")
+            _run_cmd_capture(f"nmap -sC -sV -T4 {ip2}", f"Nmap completo → {ip2}")
         elif choice == "4":
-            run_cmd(f"nmap -A -T4 {ip2}", f"Nmap agressivo → {ip2}")
+            _run_cmd_capture(f"nmap -A -T4 {ip2}", f"Nmap agressivo → {ip2}")
         elif choice == "5":
             if require_tool("masscan"):
-                run_cmd(f"sudo masscan {ip2} -p0-65535 --rate=1000", f"Masscan → {ip2}")
+                _run_cmd_capture(f"sudo masscan {ip2} -p0-65535 --rate=1000", f"Masscan → {ip2}")
         elif choice == "6":
             if require_tool("rustscan"):
-                run_cmd(f"rustscan -a {ip2} -- -sC -sV", f"RustScan → {ip2}")
+                _run_cmd_capture(f"rustscan -a {ip2} -- -sC -sV", f"RustScan → {ip2}")
         elif choice == "7":
-            run_cmd(f"traceroute {ip2}", f"Traceroute → {ip2}")
+            _run_cmd_capture(f"traceroute {ip2}", f"Traceroute → {ip2}")
         elif choice == "8":
             key = get_api_key("shodan")
             if key and (tool_exists("shodan") or require_tool("shodan")):
@@ -1277,7 +1725,8 @@ def menu_recursos():
 # ──────────────────────────────────────────────────────────
 def menu_config():
     section_header("M.  CONFIGURAÇÕES / API KEYS")
-    console.print("  [dim_green]As API keys ficam guardadas em ~/.argus_config.json[/dim_green]\n")
+    console.print("  [dim_green]As API keys ficam guardadas em ~/.argus_config.json[/dim_green]")
+    console.print("  [dim_green]Para configurar a IA (Ollama/Groq/Claude) usa a opção [O] → Configurar IA[/dim_green]\n")
 
     services = [
         ("shodan",         "Shodan",         "Necessária para shodan CLI e queries avançadas"),
@@ -1285,6 +1734,8 @@ def menu_config():
         ("censys_secret",  "Censys Secret",  "Secret da API Censys"),
         ("hibp",           "HaveIBeenPwned", "Necessária para queries programáticas HIBP"),
         ("zoomeye",        "ZoomEye",        "Acesso à API do ZoomEye"),
+        ("groq",           "Groq (IA)",      "API key Groq — gratuita em console.groq.com"),
+        ("claude",         "Claude (IA)",    "API key Anthropic — pago, console.anthropic.com"),
     ]
     for key_id, label, hint in services:
         current = config.get(f"api_{key_id}", "")
@@ -1382,7 +1833,22 @@ def menu_principal():
 
         console.print()
         console.print(Align.center("[bold green]─────────────────────────────────────────────────────[/bold green]"))
-        console.print(Align.center("[bold green]  ⚙️  SISTEMA  [/bold green]"))
+        console.print(Align.center("[bold green]  🛡️  OPSEC / ANONIMATO  [/bold green]"))
+        console.print(Align.center("[bold green]─────────────────────────────────────────────────────[/bold green]"))
+        console.print()
+        console.print(f"  [key][N][/key]  [desc]OPSEC / Anonimato / Exposição[/desc]")
+        console.print(f"       [subdesc]DeviceInfo.me, BrowserLeaks, IPLeak, DNSLeakTest, Tor Check, Temp Mail...[/subdesc]")
+
+        console.print()
+        # IA status
+        _ai_prov = ai_get_provider()
+        _ai_status = f"[ok]{AI_PROVIDERS[_ai_prov]['label']}[/ok]" if _ai_prov else "[error]não configurado[/error]"
+        console.print(Align.center("[bold green]─────────────────────────────────────────────────────[/bold green]"))
+        console.print(Align.center("[bold green]  🤖  INTELIGÊNCIA ARTIFICIAL  [/bold green]"))
+        console.print(Align.center("[bold green]─────────────────────────────────────────────────────[/bold green]"))
+        console.print()
+        console.print(f"  [key][O][/key]  [desc]ARGUS INTELLIGENCE[/desc]  {_ai_status}")
+        console.print(f"       [subdesc]Análise de scans, chat OSINT, dorks por IA, relatório de sessão[/subdesc]")
         console.print(Align.center("[bold green]─────────────────────────────────────────────────────[/bold green]"))
         console.print()
         console.print(f"  [key][M][/key]  [desc]Configurações / API Keys[/desc]  [subdesc]Shodan, Censys, HIBP, ZoomEye[/subdesc]")
@@ -1407,6 +1873,8 @@ def menu_principal():
             "K": menu_breaches,
             "L": menu_recursos,
             "M": menu_config,
+            "N": menu_opsec,
+            "O": menu_ia,
         }
 
         if choice in dispatch:
@@ -1505,6 +1973,7 @@ if __name__ == "__main__":
             "F": menu_telefone, "G": menu_geo, "H": menu_portugal,
             "I": menu_dorks, "J": menu_metadados, "K": menu_breaches,
             "L": menu_recursos, "M": menu_config, "N": menu_opsec,
+            "O": menu_ia,
         }
         while True:
             show_banner()
