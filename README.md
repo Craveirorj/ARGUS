@@ -72,7 +72,7 @@ Desenvolvida para uso exclusivamente **ético e em contexto autorizado** — tes
 ### Passo 1 — Clonar o repositório
 
 ```bash
-git clone https://github.com/SEU_USUARIO/argus.git
+git clone https://github.com/craveirorj/argus.git
 cd argus
 ```
 
