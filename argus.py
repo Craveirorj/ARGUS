@@ -86,6 +86,21 @@ session_log = []
 current_target = {"domain": None, "ip": None, "username": None, "email": None,
                   "phone": None, "name": None, "nif": None}
 
+def save_target():
+    """Guarda o alvo actual no ficheiro de config."""
+    config["last_target"] = {k: v for k, v in current_target.items() if v}
+    save_config(config)
+
+def load_last_target():
+    """Carrega o último alvo guardado na config."""
+    last = config.get("last_target", {})
+    if last:
+        for k, v in last.items():
+            if k in current_target:
+                current_target[k] = v
+        return True
+    return False
+
 # ──────────────────────────────────────────────────────────
 #  UTILITÁRIOS
 # ──────────────────────────────────────────────────────────
@@ -119,7 +134,16 @@ INSTALL_CMDS = {
     "social-analyzer": ("pipx", "social-analyzer"),
     "shodan":          ("pip3", "shodan"),
     "subfinder":       ("go",   "github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"),
+    "dnsx":            ("go",   "github.com/projectdiscovery/dnsx/cmd/dnsx@latest"),
+    "httpx":           ("go",   "github.com/projectdiscovery/httpx/cmd/httpx@latest"),
+    "gowitness":       ("go",   "github.com/sensepost/gowitness@latest"),
     "amass":           ("apt",  "amass"),
+    "metagoofil":      ("apt",  "metagoofil"),
+    "masscan":         ("apt",  "masscan"),
+    "rustscan":        ("pip3", "rustscan"),
+    "instaloader":     ("pip3", "instaloader"),
+    "spiderfoot":      ("pip3", "spiderfoot"),
+    "recon-ng":        ("pip3", "recon-ng"),
     "waybackurls":     ("go",   "github.com/tomnomnom/waybackurls@latest"),
     "nmap":            ("apt",  "nmap"),
     "theharvester":    ("apt",  "theharvester"),
@@ -128,6 +152,32 @@ INSTALL_CMDS = {
     "whois":           ("apt",  "whois"),
     "twint":           ("apt",  "twint"),
 }
+
+def _find_tool_after_install(tool, method):
+    """Procura a ferramenta em todos os locais possíveis após instalação e actualiza o PATH."""
+    # Locais comuns onde ferramentas ficam instaladas
+    search_paths = [
+        os.path.expanduser("~/.local/bin"),       # pipx, pip3 --user
+        os.path.expanduser("~/go/bin"),            # go install
+        "/usr/local/bin",                          # instalações manuais
+        "/usr/bin",                                # apt
+        "/snap/bin",                               # snap
+    ]
+
+    for path in search_paths:
+        full = os.path.join(path, tool)
+        if os.path.exists(full) and os.access(full, os.X_OK):
+            # Adiciona ao PATH desta sessão se ainda não estiver
+            if path not in os.environ.get("PATH", ""):
+                os.environ["PATH"] = path + ":" + os.environ.get("PATH", "")
+            return True
+
+    # Última tentativa: shutil.which com PATH actualizado
+    if shutil.which(tool):
+        return True
+
+    return False
+
 
 def auto_install(tool):
     """Pergunta se quer instalar a ferramenta e instala sem sair do ARGUS."""
@@ -161,7 +211,6 @@ def auto_install(tool):
     if method == "apt":
         ret = os.system(f"sudo apt install -y {pkg}")
     elif method == "pipx":
-        # garantir pipx instalado
         if not tool_exists("pipx"):
             console.print("[dim_green]A instalar pipx primeiro...[/dim_green]")
             os.system("sudo apt install -y pipx && pipx ensurepath")
@@ -173,20 +222,45 @@ def auto_install(tool):
     else:
         ret = 1
 
-    if ret == 0 and tool_exists(tool):
-        console.print(f"\n[ok]✔ {tool} instalado com sucesso! A continuar...[/ok]")
+    console.print(f"\n[dim_green]A verificar instalação de {tool}...[/dim_green]")
+
+    # Verificação robusta em múltiplos locais
+    if _find_tool_after_install(tool, method):
+        console.print(f"[ok]✔ {tool} instalado e disponível! A continuar...[/ok]")
         return True
-    else:
-        # pipx instala em PATH que pode precisar reload
-        new_path = os.path.expanduser("~/.local/bin")
-        full_path = os.path.join(new_path, tool)
-        if os.path.exists(full_path):
-            os.environ["PATH"] = new_path + ":" + os.environ.get("PATH", "")
-            console.print(f"\n[ok]✔ {tool} instalado! PATH actualizado. A continuar...[/ok]")
-            return True
-        console.print(f"\n[error]✗ Instalação falhou ou {tool} não encontrado no PATH.[/error]")
-        console.print(f"  [dim_green]Tenta manualmente: {cmd_str}[/dim_green]")
+
+    # Instalação correu bem mas ferramenta ainda não no PATH
+    if ret == 0:
+        console.print(f"[warning]⚠ {tool} instalado mas não encontrado no PATH desta sessão.[/warning]")
+        console.print(f"  [dim_green]Para usar agora sem reiniciar, corre:[/dim_green]")
+        if method in ("pipx", "pip3"):
+            console.print(f"  [bold green]export PATH=\"$HOME/.local/bin:$PATH\"[/bold green]")
+        elif method == "go":
+            console.print(f"  [bold green]export PATH=\"$HOME/go/bin:$PATH\"[/bold green]")
+        console.print(f"  [dim_green]Para tornar permanente, adiciona essa linha ao ~/.bashrc ou ~/.zshrc[/dim_green]")
+
+        # Tentar aplicar automaticamente
+        if method in ("pipx", "pip3"):
+            fix_path = os.path.expanduser("~/.local/bin")
+        elif method == "go":
+            fix_path = os.path.expanduser("~/go/bin")
+        else:
+            fix_path = None
+
+        if fix_path:
+            os.environ["PATH"] = fix_path + ":" + os.environ.get("PATH", "")
+            if shutil.which(tool):
+                console.print(f"[ok]✔ PATH corrigido automaticamente para esta sessão. A continuar...[/ok]")
+                return True
+
+        console.print(f"[error]✗ Não foi possível corrigir o PATH automaticamente.[/error]")
+        console.print(f"  [dim_green]Corre o export acima e tenta de novo.[/dim_green]")
         return False
+
+    # Instalação falhou
+    console.print(f"[error]✗ Instalação falhou.[/error]")
+    console.print(f"  [dim_green]Tenta manualmente: {cmd_str}[/dim_green]")
+    return False
 
 def require_tool(tool):
     """Verifica se ferramenta existe; se não, oferece instalação automática. Retorna True se disponível."""
@@ -274,7 +348,6 @@ def menu_alvo():
     while True:
         section_header("🎯  DEFINIR ALVO", "Define os dados do alvo desta sessão")
 
-        # Mostrar campos actuais
         fields = [
             ("1", "domain",   "Domínio / Empresa",  "ex: empresa.pt"),
             ("2", "ip",       "IP / Host",           "ex: 192.168.1.1"),
@@ -285,6 +358,11 @@ def menu_alvo():
             ("7", "nif",      "NIF Português",       "ex: 123456789"),
         ]
 
+        # Mostrar alvo guardado se existir
+        last = config.get("last_target", {})
+        if last:
+            console.print(f"  [dim_green]💾 Último alvo guardado: {', '.join(f'{k}={v}' for k,v in last.items())}[/dim_green]\n")
+
         console.print(f"  [dim_green]Escolhe o campo a definir ou [A] para preencher todos:[/dim_green]\n")
         for num, key, label, exemplo in fields:
             val = current_target.get(key)
@@ -293,38 +371,58 @@ def menu_alvo():
 
         console.print()
         console.print(f"  [key][A][/key]  [desc]Preencher todos os campos[/desc]")
+        if last:
+            console.print(f"  [key][R][/key]  [desc]Carregar último alvo guardado[/desc]")
         console.print(f"  [key][L][/key]  [desc]Limpar todos os campos[/desc]")
-        console.print(f"  [key][0][/key]  [desc]← Voltar[/desc]")
+        console.print(f"  [key][0][/key]  [desc]← Voltar (guarda automaticamente)[/desc]")
         console.print()
 
         choice = Prompt.ask("[prompt]Opção[/prompt]").strip().upper()
 
         if choice == "0":
+            # Guardar automaticamente ao sair se houver algum campo preenchido
+            tem_dados = any(v for v in current_target.values() if v)
+            if tem_dados:
+                save_target()
+                console.print("[ok]✔ Alvo guardado automaticamente.[/ok]")
             break
+
         elif choice == "A":
-            # Preencher todos
             for num, key, label, exemplo in fields:
                 val = current_target.get(key) or ""
                 novo = Prompt.ask(f"  [secondary]{label} ({exemplo})[/secondary]", default=val)
                 current_target[key] = novo.strip() or None
+            save_target()
             console.print()
-            console.print("[ok]✔ Alvo actualizado.[/ok]")
+            console.print("[ok]✔ Alvo actualizado e guardado.[/ok]")
             pause()
+
+        elif choice == "R" and last:
+            for k, v in last.items():
+                if k in current_target:
+                    current_target[k] = v
+            console.print("[ok]✔ Último alvo carregado.[/ok]")
+            pause()
+
         elif choice == "L":
             if Confirm.ask("  Limpar todos os campos do alvo?"):
                 for key in current_target:
                     current_target[key] = None
+                config.pop("last_target", None)
+                save_config(config)
                 console.print("[ok]✔ Campos limpos.[/ok]")
                 pause()
+
         elif choice in [f[0] for f in fields]:
-            # Editar campo individual
             field_data = next(f for f in fields if f[0] == choice)
             _, key, label, exemplo = field_data
             val = current_target.get(key) or ""
             novo = Prompt.ask(f"  [secondary]{label} ({exemplo})[/secondary]", default=val)
             current_target[key] = novo.strip() or None
-            console.print(f"  [ok]✔ {label} definido:[/ok] [yellow]{current_target[key]}[/yellow]")
+            save_target()
+            console.print(f"  [ok]✔ {label} guardado:[/ok] [yellow]{current_target[key]}[/yellow]")
             pause()
+
         else:
             console.print("[error]Opção inválida.[/error]")
 
@@ -342,13 +440,17 @@ def menu_dominios():
         print_option("3", "Subfinder",          "Enumeração passiva de subdomínios via OSINT", "subfinder")
         print_option("4", "Amass",              "Mapeamento avançado da superfície de ataque e subdomínios", "amass")
         print_option("5", "theHarvester",       "Recolhe emails, IPs e subdomínios de múltiplas fontes públicas", "theharvester")
-        print_option("6", "DNSDumpster",        "Visualização gráfica de registos DNS e infraestrutura", "web")
-        print_option("7", "DNSInspect",         "Diagnóstico completo de DNS: erros, TTL, propagação", "web")
-        print_option("8", "Wayback Machine",    "Histórico de versões do site ao longo do tempo", "web")
-        print_option("9", "MX / SPF / DMARC",  "Registos de email: servidor de correio e políticas anti-spam", "dig")
-        print_option("A", "crt.sh – SSL certs", "Certificados SSL emitidos para o domínio (revela subdomínios)", "web")
-        print_option("B", "AXFR – Zone Transfer","Tenta transferência de zona DNS para obter todos os registos", "dig")
-        print_option("C", "theHarvester avançado","theHarvester com fontes e limites personalizados", "theharvester")
+        print_option("6", "dnsx",               "Resolução DNS em massa: valida e filtra subdomínios encontrados", "dnsx")
+        print_option("7", "httpx",              "Verifica quais subdomínios estão activos e respondem HTTP/HTTPS", "httpx")
+        print_option("8", "gowitness",          "Screenshots automáticos de todos os subdomínios descobertos", "gowitness")
+        print_option("9", "metagoofil",         "Extrai metadados de documentos públicos (PDF, DOC) de um domínio", "metagoofil")
+        print_option("A", "DNSDumpster",        "Visualização gráfica de registos DNS e infraestrutura", "web")
+        print_option("B", "DNSInspect",         "Diagnóstico completo de DNS: erros, TTL, propagação", "web")
+        print_option("C", "Wayback Machine",    "Histórico de versões do site ao longo do tempo", "web")
+        print_option("D", "MX / SPF / DMARC",  "Registos de email: servidor de correio e políticas anti-spam", "dig")
+        print_option("E", "crt.sh – SSL certs", "Certificados SSL emitidos para o domínio (revela subdomínios)", "web")
+        print_option("F", "AXFR – Zone Transfer","Tenta transferência de zona DNS para obter todos os registos", "dig")
+        print_option("G", "theHarvester avançado","theHarvester com fontes e limites personalizados", "theharvester")
         print_option("0", "← Voltar",           "", "")
         console.print()
 
@@ -369,22 +471,35 @@ def menu_dominios():
             if tool_exists("theHarvester") or require_tool("theharvester"):
                 run_cmd(f"theHarvester -d {d} -b all", f"theHarvester → {d}")
         elif choice == "6":
-            open_url("https://dnsdumpster.com/", "DNSDumpster")
+            if require_tool("dnsx"):
+                run_cmd(f"subfinder -d {d} -silent | dnsx -silent", f"dnsx → {d}")
         elif choice == "7":
-            open_url(f"https://www.dnsinspect.com/{d}", "DNSInspect")
+            if require_tool("httpx"):
+                run_cmd(f"subfinder -d {d} -silent | httpx -silent -status-code -title", f"httpx → {d}")
         elif choice == "8":
-            open_url(f"https://web.archive.org/web/*/{d}", "Wayback Machine")
+            if require_tool("gowitness"):
+                out = f"~/argus_sessions/gowitness_{d}"
+                run_cmd(f"subfinder -d {d} -silent | httpx -silent | gowitness scan file -f - --screenshot-path {out}", f"gowitness → {d}")
         elif choice == "9":
-            run_cmd(f"dig MX {d} +short && dig TXT {d} +short", f"MX/SPF/DMARC → {d}")
+            if require_tool("metagoofil"):
+                run_cmd(f"metagoofil -d {d} -t pdf,doc,xls,ppt -o ~/argus_sessions/meta_{d}/", f"metagoofil → {d}")
         elif choice == "A":
-            open_url(f"https://crt.sh/?q=%25.{d}", "crt.sh SSL certs")
+            open_url("https://dnsdumpster.com/", "DNSDumpster")
         elif choice == "B":
+            open_url(f"https://www.dnsinspect.com/{d}", "DNSInspect")
+        elif choice == "C":
+            open_url(f"https://web.archive.org/web/*/{d}", "Wayback Machine")
+        elif choice == "D":
+            run_cmd(f"dig MX {d} +short && dig TXT {d} +short", f"MX/SPF/DMARC → {d}")
+        elif choice == "E":
+            open_url(f"https://crt.sh/?q=%25.{d}", "crt.sh SSL certs")
+        elif choice == "F":
             ns = subprocess.getoutput(f"dig NS {d} +short | head -1").strip()
             if ns:
                 run_cmd(f"dig AXFR {d} @{ns}", f"AXFR → {d} @ {ns}")
             else:
                 console.print("[error]Não foi possível obter nameserver.[/error]")
-        elif choice == "C":
+        elif choice == "G":
             if tool_exists("theHarvester") or require_tool("theharvester"):
                 sources = Prompt.ask("Fontes (ex: google,bing,crtsh)", default="google,bing,crtsh")
                 run_cmd(f"theHarvester -d {d} -b {sources} -l 500", f"theHarvester avançado → {d}")
@@ -495,18 +610,20 @@ def menu_ips():
         print_option("2", "Nmap – scan básico",   "Scan rápido dos portos mais comuns com detecção de estado", "nmap")
         print_option("3", "Nmap – completo",      "Scan com detecção de serviços (-sC -sV): versões e scripts NSE", "nmap")
         print_option("4", "Nmap – agressivo (-A)","Scan completo com OS detection, traceroute e scripts", "nmap")
-        print_option("5", "Traceroute",           "Mapa da rota de rede entre o teu host e o alvo", "traceroute")
-        print_option("6", "Shodan CLI",           "Consulta informação pública do IP: portos, banners, CVEs", "shodan")
-        print_option("7", "Shodan – host (web)",  "Página web do host no Shodan: serviços, portos, histórico", "web")
-        print_option("8", "Shodan – dashboard",   "Dashboard principal do Shodan para pesquisa e exploração", "web")
-        print_option("9", "Censys (browser)",     "Alternativa ao Shodan: certificados, serviços e metadados", "web")
-        print_option("A", "ZoomEye (browser)",    "Motor de busca de dispositivos em rede, foco em IoT/China", "web")
-        print_option("B", "IPinfo.io",            "Geolocalização, ASN, operador e hostname do IP", "web")
-        print_option("C", "GreyNoise",            "Verifica se o IP é scanner malicioso ou tráfego legítimo", "web")
-        print_option("D", "AbuseIPDB",            "Reputação do IP: reportes de abuso, spam e ataques", "web")
-        print_option("E", "VirusTotal",           "Análise do IP: malware, phishing, reputação em múltiplos engines", "web")
-        print_option("F", "BGP.tools",            "Informação BGP, ASN, prefixos e rotas do IP em tempo real", "web")
-        print_option("G", "Hurricane Electric",   "BGP Toolkit: ASN, prefixos, peers e geolocalização de rede", "web")
+        print_option("5", "Masscan",              "Scanner de portos ultra-rápido: varre toda a internet em minutos", "masscan")
+        print_option("6", "RustScan",             "Scanner moderno e rápido: encontra portos abertos e passa ao Nmap", "rustscan")
+        print_option("7", "Traceroute",           "Mapa da rota de rede entre o teu host e o alvo", "traceroute")
+        print_option("8", "Shodan CLI",           "Consulta informação pública do IP: portos, banners, CVEs", "shodan")
+        print_option("9", "Shodan – host (web)",  "Página web do host no Shodan: serviços, portos, histórico", "web")
+        print_option("A", "Shodan – dashboard",   "Dashboard principal do Shodan para pesquisa e exploração", "web")
+        print_option("B", "Censys (browser)",     "Alternativa ao Shodan: certificados, serviços e metadados", "web")
+        print_option("C", "ZoomEye (browser)",    "Motor de busca de dispositivos em rede, foco em IoT/China", "web")
+        print_option("D", "IPinfo.io",            "Geolocalização, ASN, operador e hostname do IP", "web")
+        print_option("E", "GreyNoise",            "Verifica se o IP é scanner malicioso ou tráfego legítimo", "web")
+        print_option("F", "AbuseIPDB",            "Reputação do IP: reportes de abuso, spam e ataques", "web")
+        print_option("G", "VirusTotal",           "Análise do IP: malware, phishing, reputação em múltiplos engines", "web")
+        print_option("H", "BGP.tools",            "Informação BGP, ASN, prefixos e rotas do IP em tempo real", "web")
+        print_option("I", "Hurricane Electric",   "BGP Toolkit: ASN, prefixos, peers e geolocalização de rede", "web")
         print_option("0", "← Voltar",             "", "")
         console.print()
 
@@ -522,30 +639,36 @@ def menu_ips():
         elif choice == "4":
             run_cmd(f"nmap -A -T4 {ip2}", f"Nmap agressivo → {ip2}")
         elif choice == "5":
-            run_cmd(f"traceroute {ip2}", f"Traceroute → {ip2}")
+            if require_tool("masscan"):
+                run_cmd(f"sudo masscan {ip2} -p0-65535 --rate=1000", f"Masscan → {ip2}")
         elif choice == "6":
+            if require_tool("rustscan"):
+                run_cmd(f"rustscan -a {ip2} -- -sC -sV", f"RustScan → {ip2}")
+        elif choice == "7":
+            run_cmd(f"traceroute {ip2}", f"Traceroute → {ip2}")
+        elif choice == "8":
             key = get_api_key("shodan")
             if key and (tool_exists("shodan") or require_tool("shodan")):
                 run_cmd(f"shodan init {key} && shodan host {ip2}", f"Shodan CLI → {ip2}")
-        elif choice == "7":
-            open_url(f"https://www.shodan.io/host/{ip2}", "Shodan host web")
-        elif choice == "8":
-            open_url("https://www.shodan.io/dashboard", "Shodan dashboard")
         elif choice == "9":
-            open_url(f"https://search.censys.io/hosts/{ip2}", "Censys")
+            open_url(f"https://www.shodan.io/host/{ip2}", "Shodan host web")
         elif choice == "A":
-            open_url(f"https://www.zoomeye.org/searchResult?q={ip2}", "ZoomEye")
+            open_url("https://www.shodan.io/dashboard", "Shodan dashboard")
         elif choice == "B":
-            open_url(f"https://ipinfo.io/{ip2}", "IPinfo")
+            open_url(f"https://search.censys.io/hosts/{ip2}", "Censys")
         elif choice == "C":
-            open_url(f"https://www.greynoise.io/viz/ip/{ip2}", "GreyNoise")
+            open_url(f"https://www.zoomeye.org/searchResult?q={ip2}", "ZoomEye")
         elif choice == "D":
-            open_url(f"https://www.abuseipdb.com/check/{ip2}", "AbuseIPDB")
+            open_url(f"https://ipinfo.io/{ip2}", "IPinfo")
         elif choice == "E":
-            open_url(f"https://www.virustotal.com/gui/ip-address/{ip2}", "VirusTotal")
+            open_url(f"https://www.greynoise.io/viz/ip/{ip2}", "GreyNoise")
         elif choice == "F":
-            open_url(f"https://bgp.tools/prefix/{ip2}", "BGP.tools")
+            open_url(f"https://www.abuseipdb.com/check/{ip2}", "AbuseIPDB")
         elif choice == "G":
+            open_url(f"https://www.virustotal.com/gui/ip-address/{ip2}", "VirusTotal")
+        elif choice == "H":
+            open_url(f"https://bgp.tools/prefix/{ip2}", "BGP.tools")
+        elif choice == "I":
             open_url(f"https://bgp.he.net/ip/{ip2}", "Hurricane Electric")
         elif choice == "0":
             break
@@ -568,12 +691,13 @@ def menu_social():
         print_option("3", "Social Analyzer",  "Análise de perfis em 1000+ plataformas com scoring de confiança", "social-analyzer")
         print_option("4", "Twitter / X",      "Pesquisa avançada de tweets e perfil público do utilizador", "web")
         print_option("5", "Instagram",        "Acesso directo ao perfil público do utilizador", "web")
-        print_option("6", "Facebook",         "Pesquisa de nome, posts públicos e perfis associados", "web")
-        print_option("7", "LinkedIn",         "Pesquisa profissional: cargo, empresa, histórico e conexões", "web")
-        print_option("8", "TikTok",           "Perfil público com vídeos e informação do utilizador", "web")
-        print_option("9", "Reddit",           "Histórico de posts e comentários do utilizador no Reddit", "web")
-        print_option("A", "GitHub",           "Perfil, repositórios públicos e actividade de desenvolvimento", "web")
-        print_option("B", "Twint",            "Scraping avançado de tweets sem API: histórico, menções, localização", "twint")
+        print_option("6", "Instaloader",      "Download completo de perfis Instagram: posts, stories, seguidores", "instaloader")
+        print_option("7", "Facebook",         "Pesquisa de nome, posts públicos e perfis associados", "web")
+        print_option("8", "LinkedIn",         "Pesquisa profissional: cargo, empresa, histórico e conexões", "web")
+        print_option("9", "TikTok",           "Perfil público com vídeos e informação do utilizador", "web")
+        print_option("A", "Reddit",           "Histórico de posts e comentários do utilizador no Reddit", "web")
+        print_option("B", "GitHub",           "Perfil, repositórios públicos e actividade de desenvolvimento", "web")
+        print_option("C", "Twint",            "Scraping avançado de tweets sem API: histórico, menções, localização", "twint")
         print_option("0", "← Voltar",         "", "")
         console.print()
 
@@ -597,20 +721,24 @@ def menu_social():
             open_url(f"https://www.instagram.com/{u2}/", "Instagram")
         elif choice == "6":
             u2 = require_target("username")
-            open_url(f"https://www.facebook.com/search/top?q={u2}", "Facebook")
+            if require_tool("instaloader"):
+                run_cmd(f"instaloader --no-captions --no-compress-json {u2}", f"Instaloader → {u2}")
         elif choice == "7":
             u2 = require_target("username")
-            open_url(f"https://www.linkedin.com/search/results/all/?keywords={u2}", "LinkedIn")
+            open_url(f"https://www.facebook.com/search/top?q={u2}", "Facebook")
         elif choice == "8":
             u2 = require_target("username")
-            open_url(f"https://www.tiktok.com/@{u2}", "TikTok")
+            open_url(f"https://www.linkedin.com/search/results/all/?keywords={u2}", "LinkedIn")
         elif choice == "9":
             u2 = require_target("username")
-            open_url(f"https://www.reddit.com/user/{u2}/", "Reddit")
+            open_url(f"https://www.tiktok.com/@{u2}", "TikTok")
         elif choice == "A":
             u2 = require_target("username")
-            open_url(f"https://github.com/{u2}", "GitHub")
+            open_url(f"https://www.reddit.com/user/{u2}/", "Reddit")
         elif choice == "B":
+            u2 = require_target("username")
+            open_url(f"https://github.com/{u2}", "GitHub")
+        elif choice == "C":
             u2 = require_target("username")
             if tool_exists("twint"):
                 run_cmd(f"twint -u {u2} -o ~/argus_sessions/twint_{u2}.json --json", f"Twint → {u2}")
@@ -1089,49 +1217,55 @@ def menu_recursos():
         print_option("4", "My OSINT Training",      "Plataforma de aprendizagem prática com exercícios reais", "web")
         print_option("5", "District4Labs",          "Plataforma profissional de inteligência e análise OSINT", "web")
         print_option("6", "Maltego",                "Ferramenta visual de mapeamento de relações e entidades OSINT", "web")
-        print_option("7", "Kagi",                   "Motor de busca privado sem rastreio: útil para OSINT neutro", "web")
-        print_option("8", "FlightAware",            "Rastreio de voos em tempo real: rota, altitude, operador", "web")
-        print_option("9", "MarineTraffic",          "Rastreio de embarcações em tempo real: posição AIS global", "web")
-        print_option("A", "OpenCorporates",         "Base de dados global de empresas: registo, directores, filiais", "web")
-        print_option("B", "EDGAR – SEC",            "Registos obrigatórios de empresas cotadas nos EUA", "web")
-        print_option("C", "WeLiveSecurity – Dorks", "Artigo sobre Google Hacking: como usar dorks eficazmente", "web")
-        print_option("D", "Spiderfoot",             "Plataforma OSINT automatizada: recon completo de alvos", "web")
-        print_option("E", "Recon-ng",               "Framework modular de reconhecimento OSINT para terminal", "web")
-        print_option("F", "theHarvester – docs",    "Documentação e módulos disponíveis do theHarvester", "web")
-        print_option("G", "Hunter.io",              "Pesquisa de emails profissionais por domínio de empresa", "web")
-        print_option("H", "Pipl",                   "Pesquisa avançada de pessoas: redes sociais, email, telefone", "web")
-        print_option("I", "PublicWWW",              "Pesquisa de código-fonte de sites: scripts, widgets, fingerprinting", "web")
-        print_option("J", "BuiltWith",              "Tecnologias usadas por um site: CMS, frameworks, analytics", "web")
-        print_option("K", "Wappalyzer",             "Identifica tecnologias web de qualquer site", "web")
+        print_option("7", "Spiderfoot CLI",         "Recon automatizado com 200+ módulos: IPs, emails, domínios, redes sociais", "spiderfoot")
+        print_option("8", "Recon-ng CLI",           "Framework modular de reconhecimento OSINT com workspaces e reports", "recon-ng")
+        print_option("9", "Kagi",                   "Motor de busca privado sem rastreio: útil para OSINT neutro", "web")
+        print_option("A", "FlightAware",            "Rastreio de voos em tempo real: rota, altitude, operador", "web")
+        print_option("B", "MarineTraffic",          "Rastreio de embarcações em tempo real: posição AIS global", "web")
+        print_option("C", "OpenCorporates",         "Base de dados global de empresas: registo, directores, filiais", "web")
+        print_option("D", "EDGAR – SEC",            "Registos obrigatórios de empresas cotadas nos EUA", "web")
+        print_option("E", "Hunter.io",              "Pesquisa de emails profissionais por domínio de empresa", "web")
+        print_option("F", "Pipl",                   "Motor de pesquisa de identidade: agrega dados de múltiplas fontes", "web")
+        print_option("G", "PublicWWW",              "Pesquisa de código-fonte de sites: scripts, widgets, fingerprinting", "web")
+        print_option("H", "BuiltWith",              "Tecnologias usadas por um site: CMS, frameworks, analytics", "web")
+        print_option("I", "Wappalyzer",             "Identifica tecnologias web de qualquer site", "web")
+        print_option("J", "Awesome OSINT Arsenal",  "1100+ ferramentas OSINT em 50+ categorias — referência completa", "web")
         print_option("0", "← Voltar",               "", "")
         console.print()
 
         choice = Prompt.ask("[prompt]Opção[/prompt]").strip().upper()
 
-        urls = {
+        web_urls = {
             "1": ("https://osintframework.com/", "OSINT Framework"),
             "2": ("https://bellingcat.gitbook.io/toolkit", "Bellingcat Toolkit"),
             "3": ("https://www.osintcombine.com/", "OSINT Combine"),
             "4": ("https://smart.myosint.training/", "My OSINT Training"),
             "5": ("https://www.district4labs.com/", "District4Labs"),
             "6": ("https://www.maltego.com/", "Maltego"),
-            "7": ("https://kagi.com/", "Kagi"),
-            "8": ("https://flightaware.com/", "FlightAware"),
-            "9": ("https://www.marinetraffic.com/", "MarineTraffic"),
-            "A": ("https://opencorporates.com/", "OpenCorporates"),
-            "B": ("https://www.sec.gov/edgar/search/", "EDGAR"),
-            "C": ("https://www.welivesecurity.com/br/2021/07/30/google-hacking-verifique-quais-informacoes-sobre-voce-ou-sua-empresa-aparecem-nos-resultados/", "WeLiveSecurity Dorks"),
-            "D": ("https://www.spiderfoot.net/", "Spiderfoot"),
-            "E": ("https://github.com/lanmaster53/recon-ng", "Recon-ng GitHub"),
-            "F": ("https://www.kali.org/tools/theharvester/", "theHarvester docs"),
-            "G": ("https://hunter.io/", "Hunter.io"),
-            "H": ("https://pipl.com/", "Pipl"),
-            "I": ("https://publicwww.com/", "PublicWWW"),
-            "J": ("https://builtwith.com/", "BuiltWith"),
-            "K": ("https://www.wappalyzer.com/", "Wappalyzer"),
+            "9": ("https://kagi.com/", "Kagi"),
+            "A": ("https://flightaware.com/", "FlightAware"),
+            "B": ("https://www.marinetraffic.com/", "MarineTraffic"),
+            "C": ("https://opencorporates.com/", "OpenCorporates"),
+            "D": ("https://www.sec.gov/edgar/search/", "EDGAR"),
+            "E": ("https://hunter.io/", "Hunter.io"),
+            "F": ("https://pipl.com/", "Pipl"),
+            "G": ("https://publicwww.com/", "PublicWWW"),
+            "H": ("https://builtwith.com/", "BuiltWith"),
+            "I": ("https://www.wappalyzer.com/", "Wappalyzer"),
+            "J": ("https://github.com/rawfilejson/awesome-osint-arsenal", "Awesome OSINT Arsenal"),
         }
-        if choice in urls:
-            open_url(*urls[choice])
+
+        if choice == "7":
+            if require_tool("spiderfoot"):
+                target = require_target("domain") or require_target("ip")
+                run_cmd(f"spiderfoot -s {target} -q -o ~/argus_sessions/spiderfoot_{target}.json", f"Spiderfoot → {target}")
+            pause()
+        elif choice == "8":
+            if require_tool("recon-ng"):
+                run_cmd("recon-ng", "Recon-ng CLI")
+            pause()
+        elif choice in web_urls:
+            open_url(*web_urls[choice])
             pause()
         elif choice == "0":
             break
@@ -1453,6 +1587,14 @@ if __name__ == "__main__":
                 console.print("[error]Opção inválida.[/error]")
 
     try:
+        # Carregar último alvo guardado ao arrancar
+        if load_last_target():
+            alvos = {k: v for k, v in current_target.items() if v}
+            console.print()
+            console.print(Align.center("[bold green]💾 Último alvo carregado automaticamente:[/bold green]"))
+            for k, v in alvos.items():
+                console.print(Align.center(f"[dim_green]{k}[/dim_green] → [yellow]{v}[/yellow]"))
+            console.print()
         menu_principal_com_ferramentas()
     except KeyboardInterrupt:
         console.print("\n\n[bold green]ARGUS[/bold green] [dim_green]interrompido.[/dim_green]\n")
