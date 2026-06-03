@@ -7,16 +7,15 @@
 ![Platform](https://img.shields.io/badge/Platform-Kali%20Linux-brightgreen?style=flat-square&logo=linux)
 ![License](https://img.shields.io/badge/License-MIT-brightgreen?style=flat-square)
 ![OSINT](https://img.shields.io/badge/Category-OSINT-brightgreen?style=flat-square)
-![Files](https://img.shields.io/badge/Ficheiros-1-brightgreen?style=flat-square)
-![Tools](https://img.shields.io/badge/Ferramentas-100%2B-brightgreen?style=flat-square)
+![AI](https://img.shields.io/badge/AI-Ollama%20%7C%20Groq%20%7C%20Claude-brightgreen?style=flat-square)
 
 ---
 
 ## 📌 Descrição
 
-**ARGUS** é uma ferramenta OSINT de linha de comando desenvolvida para **Kali Linux**, com interface interactiva em menu. Centraliza num **único ficheiro Python** mais de **100 técnicas e recursos OSINT** organizados por categoria, desde reconhecimento de domínios e infraestrutura até pesquisa de pessoas, equipamentos IoT, geolocalização, fugas de dados e OPSEC.
+**ARGUS** é uma ferramenta OSINT de linha de comando desenvolvida para **Kali Linux**, com interface interactiva em menu. Centraliza num único ponto de acesso mais de **80 técnicas e recursos OSINT** organizados por categoria — desde reconhecimento de domínios e infraestrutura até pesquisa de pessoas, equipamentos IoT, geolocalização e fugas de dados.
 
-A ferramenta **instala automaticamente** qualquer dependência em falta — sem sair do menu, sem reboot, sem configuração prévia.
+A versão actual inclui o módulo **ARGUS INTELLIGENCE** — um motor de IA integrado que analisa automaticamente os resultados dos scans, sugere vectores de investigação e responde a perguntas OSINT em linguagem natural, adaptado ao nível do utilizador (Iniciante / Intermédio / Avançado).
 
 Desenvolvida para uso exclusivamente **ético e em contexto autorizado** — testes de segurança, investigação académica, CTF e certificações de cibersegurança.
 
@@ -24,308 +23,246 @@ Desenvolvida para uso exclusivamente **ético e em contexto autorizado** — tes
 
 ## ✨ Funcionalidades
 
-- 📄 **Ficheiro único** — apenas `argus.py`, sem dependências a instalar manualmente
-- 🔧 **Auto-instalação inteligente** — instala qualquer ferramenta em falta sem sair do ARGUS, corrige o PATH automaticamente e continua sem reboot
-- 🎯 **Alvo persistente** — define uma vez por campo (domínio, IP, username, email, telefone, nome, NIF), guardado automaticamente entre sessões
-- 🔄 **Carregamento automático** — o último alvo é carregado ao arrancar o ARGUS
-- 🌐 **14 módulos OSINT** com navegação por letras e números
-- 🖥️ **Ferramentas CLI integradas** — execução directa no terminal com detecção automática
-- 🌍 **Recursos web** — abre no browser com o alvo pré-preenchido no URL
-- 💾 **Sessões JSON** — registo completo de todas as acções guardado em `~/argus_sessions/`
-- ⚙️ **Gestão de API keys** — Shodan, Censys, HIBP, ZoomEye guardadas em `~/.argus_config.json`
-- 🎨 **Interface verde/preto** com descrição de cada ferramenta e estado de instalação
-- 🇵🇹 **Módulo Portugal** — NIF, CC, Ubikron, RACIUS, Transparência.pt
-- 🛡️ **Módulo OPSEC** — DeviceInfo.me, BrowserLeaks, IPLeak, DNSLeakTest, Tor Check, emails temporários
-- `[?]` **Estado das ferramentas** — lista todas as CLI com indicação instaladas/em falta
+### 🔍 Reconhecimento OSINT
+| Módulo | Ferramentas / Recursos |
+|--------|----------------------|
+| **Domínios / Empresas / DNS** | WHOIS, dig, subfinder, amass, theHarvester, dnsx, httpx, gowitness, metagoofil, DNSDumpster, crt.sh, AXFR |
+| **Pessoas / Usernames** | Maigret, OSINT Industries, Datagma, OSINTgram, Radaris, FastPeopleSearch, Spokeo, BeenVerified, Pipl |
+| **IPs / Infraestrutura** | Nmap, Masscan, RustScan, Shodan CLI, Censys, ZoomEye, IPinfo, GreyNoise, AbuseIPDB, VirusTotal, BGP.tools |
+| **Redes Sociais** | Twitter/X, Instagram, Facebook, LinkedIn, TikTok, Reddit, GitHub (perfis, posts, geotags) |
+| **Equipamentos / IoT** | Shodan queries, câmeras abertas, routers, ICS/SCADA, BinaryEdge, FOFA, Onyphe, WiGLE |
+| **Telefone** | Truecaller, Sync.me, SpyDialer, PhoneInfoga, NumVerify |
+| **Geolocalização** | Google Earth, WiGLE, GPSJam, SunCalc, ExifTool GPS, What3Words, Geohints |
+| **🇵🇹 Portugal** | NIF lookup, Cartão de Cidadão, Ubikron, Registo Comercial, RACIUS, Transparência.pt |
+
+### 🛠️ Técnicas
+| Módulo | Descrição |
+|--------|-----------|
+| **Google Dorks** | Exploit-DB GHDB, DorkGPT, DorkSearch, dorks automáticos por categoria (ficheiros, login, config, câmeras, SQL) |
+| **Metadados / Arquivos** | ExifTool, Wayback Machine, Arquivo.pt, Waybackurls, ODCrawler, Google Cache |
+| **Breaches / Fugas** | HaveIBeenPwned, H8mail, Holehe, IntelX, DeHashed, LeakIX |
+
+### 🤖 ARGUS INTELLIGENCE (IA)
+| Função | Descrição |
+|--------|-----------|
+| **Analisar último scan** | Analisa automaticamente o output do último scan capturado |
+| **Analisar output manual** | Cola qualquer output de ferramenta para análise de IA |
+| **Chat OSINT livre** | Faz perguntas sobre o alvo activo em linguagem natural |
+| **Gerar Dorks por IA** | Dorks personalizados e explicados para o alvo definido |
+| **Analisar breach/leak** | Interpreta resultados de breaches e sugere acções |
+| **Relatório de sessão** | Gera relatório executivo inteligente de toda a sessão |
+
+### ⚙️ Sistema
+- **Auto-instalação do `rich`** — se não estiver presente, instala automaticamente e reinicia
+- **Gestão de ferramentas CLI** — verifica estado e instala ferramentas com `[?]`
+- **Gestão de alvos** — guarda e carrega automaticamente o último alvo (domínio, IP, username, email, telefone, nome, NIF)
+- **Log de sessão** — regista todas as acções com timestamp e exporta para JSON
+- **API Keys** — gestão centralizada de Shodan, Censys, HIBP, ZoomEye, Groq, Claude
+- **OPSEC** — ferramentas para verificar exposição, fugas de IP/DNS, anonimato e fingerprinting
 
 ---
 
-## 📋 Módulos
+## 🚀 Instalação
 
-| Tecla | Módulo | Ferramentas / Recursos |
-|-------|--------|------------------------|
-| `T` | 🎯 Definir Alvo | Domínio, IP, Username, Email, Telefone, Nome, NIF — guardado automaticamente |
-| `A` | 🌐 Domínios / Empresas / DNS | WHOIS, dig, subfinder, amass, theHarvester, **dnsx**, **httpx**, **gowitness**, **metagoofil**, crt.sh, AXFR |
-| `B` | 👤 Pessoas / Usernames | Maigret, OSINT Industries, Datagma, **Spokeo**, **BeenVerified**, **TruthFinder**, **Intelius**, **Social Catfish**, **CocoFinder**, Radaris, Pipl |
-| `C` | 🖥️ IPs / Infraestrutura | Nmap, **Masscan**, **RustScan**, Shodan CLI+web, Censys, BGP.tools, GreyNoise, AbuseIPDB, VirusTotal |
-| `D` | 📱 Redes Sociais | Sherlock, WhatsMyName, Social Analyzer, **Instaloader**, Twitter, Instagram, Facebook, LinkedIn, TikTok, Reddit |
-| `E` | 📡 Equipamentos / IoT | Shodan queries+dashboard, câmeras, routers, ICS/SCADA, WiGLE, GPSJam, FOFA, **BinaryEdge**, **Onyphe** |
-| `F` | 📞 Telefone | Truecaller, Sync.me, SpyDialer, PhoneInfoga, NumVerify |
-| `G` | 🗺️ Geolocalização | Google Earth, WiGLE, GPSJam, SunCalc, ExifTool GPS, What3Words, OpenStreetMap |
-| `H` | 🇵🇹 Portugal | NIF lookup, CC, Ubikron, Registo Comercial, RACIUS, Transparência.pt |
-| `I` | 🔍 Google Dorks | Exploit-DB GHDB, DorkGPT, DorkSearch, dorks automáticos por categoria |
-| `J` | 🗂️ Metadados / Arquivos | ExifTool, Wayback Machine, Arquivo.pt, ODCrawler, Waybackurls |
-| `K` | 🔐 Breaches | HaveIBeenPwned, H8mail, Holehe, IntelX, DeHashed, LeakIX |
-| `L` | 📚 Recursos / Ferramentas | Maltego, **Spiderfoot CLI**, **Recon-ng CLI**, OSINT Framework, Bellingcat, Hunter.io, BuiltWith, Wappalyzer, **Awesome OSINT Arsenal** |
-| `M` | ⚙️ Configurações | API keys: Shodan, Censys, HIBP, ZoomEye |
-| `N` | 🛡️ OPSEC / Anonimato | **DeviceInfo.me**, BrowserLeaks, CoverYourTracks (EFF), AmIUnique, IPLeak, DNSLeakTest, Mullvad Check, Tor Check, Temp Mail |
-| `?` | 🔧 Estado das Ferramentas | Lista todas as CLI com estado instalado/em falta e comando de instalação automática |
-| `S` | 💾 Guardar Sessão | Exporta log JSON completo para `~/argus_sessions/` |
+### Pré-requisitos
+- Kali Linux (recomendado) ou qualquer distro Debian/Ubuntu
+- Python 3.8 ou superior
+- Git
 
----
-
-## ⚙️ Requisitos
-
-### Sistema operativo
-- **Kali Linux** (recomendado) — todas as ferramentas CLI disponíveis via `apt`
-- Ubuntu / Debian — compatível
-
-### Python
-```
-Python 3.8 ou superior
-```
-
-### Dependências
-> **Nenhuma instalação manual necessária.**
-> O ARGUS detecta e instala automaticamente qualquer ferramenta em falta quando a seleccionas no menu.
-
----
-
-## 🚀 Instalação e Execução
-
-O ARGUS é um **ficheiro único**. Basta clonar e executar:
+### Passo 1 — Clonar o repositório
 
 ```bash
-# 1. Clonar o repositório
-git clone https://github.com/teu-username/argus.git
+git clone https://github.com/SEU_USUARIO/argus.git
 cd argus
+```
 
-# 2. Dar permissões de execução
-chmod +x argus.py
+### Passo 2 — Executar
 
-# 3. Executar
+```bash
 python3 argus.py
 ```
 
-Na primeira execução, se a biblioteca `rich` não estiver instalada, o ARGUS instala-a automaticamente e reinicia.
+> O ARGUS instala automaticamente a biblioteca `rich` se não estiver presente. Não é necessário mais nenhum passo de instalação obrigatório.
+
+### Passo 3 (opcional) — Tornar executável globalmente
+
+```bash
+chmod +x argus.py
+sudo cp argus.py /usr/local/bin/argus
+argus
+```
 
 ---
 
-## 📄 Ficheiros do Repositório
+## 🤖 Configurar a IA (ARGUS INTELLIGENCE)
+
+O módulo de IA é **opcional** mas altamente recomendado. Suporta três providers — escolhe o que se adequa à tua situação:
+
+---
+
+### Opção 1 — Ollama (Local, 100% Gratuito) ✅ Recomendado
+
+O Ollama corre um modelo de IA directamente na tua máquina. Não precisa de internet, não precisa de conta, sem limites de uso.
+
+**Instalar o Ollama:**
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+**Descarregar um modelo** (escolhe um):
+```bash
+ollama pull llama3        # Recomendado — bom equilíbrio velocidade/qualidade
+ollama pull mistral       # Alternativa mais leve
+ollama pull llama3:70b    # Máxima qualidade (requer ~40GB RAM)
+```
+
+**Iniciar o servidor Ollama** (precisa de estar activo para o ARGUS usar):
+```bash
+ollama serve
+```
+
+> Dica: adiciona `ollama serve &` ao teu `.bashrc` para iniciar automaticamente.
+
+**Configurar no ARGUS:**
+1. No menu principal → `[O]` → `[C] Configurar IA`
+2. Escolhe `[1] Ollama (local, gratuito)`
+3. Introduz o nome do modelo (ex: `llama3`)
+4. Escolhe o teu nível (Iniciante / Intermédio / Avançado)
+
+---
+
+### Opção 2 — Groq API (Cloud, Gratuito com conta)
+
+A Groq oferece uma API gratuita com limites generosos para modelos como Llama3 e Mixtral. Requer internet mas é muito rápida.
+
+**Criar conta gratuita:**
+1. Acede a [https://console.groq.com/](https://console.groq.com/)
+2. Regista-te (gratuito)
+3. Em **API Keys** → **Create API Key**
+4. Copia a chave gerada
+
+**Configurar no ARGUS:**
+1. No menu principal → `[O]` → `[C] Configurar IA`
+2. Escolhe `[2] Groq API (cloud, gratuito)`
+3. Cola a tua API key
+4. Modelo recomendado: `llama3-70b-8192`
+5. Escolhe o teu nível
+
+---
+
+### Opção 3 — Claude API (Anthropic, Pago)
+
+Para quem tem acesso à API da Anthropic. Máxima qualidade de análise.
+
+**Obter API key:**
+1. Acede a [https://console.anthropic.com/](https://console.anthropic.com/)
+2. Em **API Keys** → **Create Key**
+3. Copia a chave
+
+**Configurar no ARGUS:**
+1. No menu principal → `[O]` → `[C] Configurar IA`
+2. Escolhe `[3] Claude API (Anthropic, pago)`
+3. Cola a tua API key
+4. Modelo recomendado: `claude-opus-4-6`
+5. Escolhe o teu nível
+
+---
+
+### Níveis de utilizador da IA
+
+| Nível | Comportamento |
+|-------|--------------|
+| **Iniciante** | Explica tudo em detalhe, dá comandos completos com cada flag explicada |
+| **Intermédio** | Sugere vectores, dá comandos, deixa explorar sem explicações excessivas |
+| **Avançado** | Lista vulnerabilidades e vectores directamente, sem explicações |
+
+---
+
+## 📖 Como usar
+
+### Iniciar o ARGUS
+
+```bash
+python3 argus.py          # Modo normal
+python3 argus.py --status # Ver estado de todas as ferramentas CLI
+python3 argus.py --help   # Ajuda rápida
+```
+
+### Fluxo básico de trabalho
+
+```
+1. [T] Definir Alvo       → Introduz domínio, IP, username, email, etc.
+2. [A-N] Módulos OSINT    → Escolhe o módulo adequado ao teu alvo
+3. Executa ferramentas    → Output capturado automaticamente
+4. [O] ARGUS INTELLIGENCE → Analisa resultados com IA, faz perguntas, gera relatório
+5. [S] Guardar Sessão     → Exporta log completo para JSON
+```
+
+### Navegação
+
+- **Letras maiúsculas** `[A]` a `[O]` — acesso aos módulos
+- **`[T]`** — definir/editar alvo
+- **`[O]`** — ARGUS INTELLIGENCE (módulo de IA)
+- **`[M]`** — configurações e API keys
+- **`[?]`** — estado das ferramentas CLI
+- **`[S]`** — guardar sessão
+- **`[0]`** — voltar / sair
+
+---
+
+## 🔧 Ferramentas CLI recomendadas
+
+O ARGUS instala ferramentas automaticamente quando necessário, mas podes instalar tudo de uma vez:
+
+```bash
+# Ferramentas apt
+sudo apt update && sudo apt install -y \
+  nmap masscan theharvester amass sherlock h8mail \
+  exiftool traceroute whois metagoofil
+
+# Ferramentas pip/pipx
+pipx install maigret holehe
+pip3 install shodan rustscan instaloader spiderfoot recon-ng --break-system-packages
+
+# Ferramentas Go
+go install github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+go install github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+go install github.com/projectdiscovery/httpx/cmd/httpx@latest
+go install github.com/sensepost/gowitness@latest
+go install github.com/tomnomnom/waybackurls@latest
+```
+
+---
+
+## 📁 Estrutura de ficheiros
 
 ```
 argus/
-├── argus.py     ← ferramenta completa (ficheiro único)
-└── README.md    ← documentação
-```
+├── argus.py          # Ficheiro principal — tudo num único script
+└── README.md         # Este ficheiro
 
-Ficheiros criados automaticamente pelo ARGUS (fora do repositório):
-```
-~/.argus_config.json    ← API keys e último alvo guardados localmente
-~/argus_sessions/       ← sessões OSINT exportadas em JSON
-```
-
----
-
-## 🔧 Auto-Instalação de Ferramentas
-
-Quando seleccionas uma opção cuja ferramenta CLI não está instalada, o ARGUS trata de tudo automaticamente:
-
-```
-⚠ subfinder não está instalado.
-  Comando: go install github.com/projectdiscovery/subfinder/...
-  Instalar agora? [s/n]: s
-
-▶ A instalar subfinder...
-  [instalação corre aqui sem sair do ARGUS]
-
-A verificar instalação...
-✔ subfinder instalado e disponível! A continuar...
-```
-
-O ARGUS procura a ferramenta em múltiplos locais (`~/.local/bin`, `~/go/bin`, `/usr/bin`, etc.) e corrige o PATH automaticamente para a sessão actual — **sem reboot, sem reiniciar o ARGUS**.
-
-| Método | Ferramentas |
-|--------|-------------|
-| `sudo apt install` | sherlock, h8mail, amass, nmap, theharvester, metagoofil, masscan, exiftool, traceroute, whois |
-| `pipx install` | maigret, holehe, social-analyzer |
-| `pip3 install` | shodan, rustscan, instaloader, spiderfoot, recon-ng |
-| `go install` | subfinder, dnsx, httpx, gowitness, waybackurls |
-| Manual (abre browser) | phoneinfoga, maltego |
-
----
-
-## 🎯 Alvo Persistente
-
-O ARGUS guarda o alvo automaticamente — não precisas de reintroduzir os dados a cada sessão.
-
-```
-🎯 DEFINIR ALVO
-
-  💾 Último alvo guardado: domain=empresa.pt, ip=192.168.1.1
-
-  [1]  Domínio / Empresa    empresa.pt       (ex: empresa.pt)
-  [2]  IP / Host            192.168.1.1      (ex: 192.168.1.1)
-  [3]  Username             não definido     (ex: joao_silva)
-  ...
-
-  [A]  Preencher todos os campos
-  [R]  Carregar último alvo guardado
-  [L]  Limpar todos os campos
-  [0]  ← Voltar (guarda automaticamente)
-```
-
-- Edita **só o campo que precisas** sem tocar nos outros
-- **Guardado automaticamente** ao voltar ao menu principal
-- **Carregado automaticamente** ao arrancar o ARGUS
-
----
-
-## 🔑 API Keys
-
-Configura as API keys dentro do ARGUS em **`[M] Configurações`** — ficam guardadas em `~/.argus_config.json`.
-
-| Serviço | Onde obter | Plano gratuito |
-|---------|-----------|----------------|
-| **Shodan** | https://account.shodan.io/ | Limitado |
-| **Censys** | https://censys.io/register | Sim |
-| **HaveIBeenPwned** | https://haveibeenpwned.com/API/Key | Pago |
-| **ZoomEye** | https://www.zoomeye.org/profile | Sim |
-
----
-
-## 🖥️ Argumentos de Linha de Comando
-
-```bash
-python3 argus.py             # lança normalmente
-python3 argus.py --status    # mostra estado de todas as ferramentas CLI
-python3 argus.py --help      # mostra ajuda rápida
-```
-
----
-
-## 📖 Fluxo Típico de Investigação
-
-```
-1. Inicia o ARGUS
-   python3 argus.py
-   → Último alvo carregado automaticamente
-
-2. Define o alvo [T]
-   → Edita só os campos necessários
-   → Guardado automaticamente ao sair
-
-3. Reconhecimento de domínio [A]
-   → WHOIS, DNS completo, subfinder, theHarvester
-   → dnsx (valida subdomínios), httpx (verifica activos)
-   → gowitness (screenshots), metagoofil (metadados docs)
-
-4. Infraestrutura [C]
-   → Nmap, Masscan (scan rápido), RustScan
-   → Shodan CLI+web, Censys, BGP.tools
-
-5. Equipamentos expostos [E]
-   → Shodan queries, câmeras, routers, ICS/SCADA
-   → BinaryEdge, Onyphe, FOFA
-
-6. Pesquisa de pessoas [B]
-   → Maigret, OSINT Industries
-   → Background check: Spokeo, BeenVerified, TruthFinder
-
-7. Redes sociais [D]
-   → Sherlock, Social Analyzer
-   → Instaloader (Instagram completo)
-
-8. Google Dorks [I]
-   → Ficheiros expostos, painéis de login, configurações
-
-9. Verifica breaches [K]
-   → HaveIBeenPwned, DeHashed, IntelX
-
-10. Ferramentas avançadas [L]
-    → Spiderfoot CLI, Recon-ng CLI, Maltego
-
-11. Verifica a tua exposição [N]
-    → DeviceInfo.me, IPLeak, BrowserLeaks
-
-12. Guarda sessão [S]
-    → JSON completo em ~/argus_sessions/
-```
-
----
-
-## 📸 Preview
-
-```
- █████╗ ██████╗  ██████╗ ██╗   ██╗███████╗
-██╔══██╗██╔══██╗██╔════╝ ██║   ██║██╔════╝
-███████║██████╔╝██║  ███╗██║   ██║███████╗
-██╔══██║██╔══██╗██║   ██║██║   ██║╚════██║
-██║  ██║██║  ██║╚██████╔╝╚██████╔╝███████║
-╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚══════╝
-
-     Advanced Reconnaissance & OSINT Intelligence Suite
-     "O gigante de 100 olhos que tudo vê"  |  Kali Linux  |  v1.0
-
-─────────────────────────────────────────────────────
-                    🎯  ALVO
-─────────────────────────────────────────────────────
-
-  [T]  Definir Alvo
-       Domínio, IP, Username, Email, Telefone, Nome, NIF
-
-─────────────────────────────────────────────────────
-                 🔍  RECONHECIMENTO
-─────────────────────────────────────────────────────
-
-  [A]  Domínios / Empresas / DNS
-       WHOIS, dig, subfinder, amass, theHarvester, dnsx, httpx, gowitness
-
-  [B]  Pessoas / Usernames / Identidade
-       Maigret, OSINT Industries, Spokeo, BeenVerified, TruthFinder...
-
-  [C]  IPs / Infraestrutura
-       Nmap, Masscan, RustScan, Shodan CLI+web, Censys, BGP.tools
-
-  [D]  Redes Sociais
-       Sherlock, Social Analyzer, Instaloader, Twitter, Instagram...
-
-  [E]  Equipamentos / IoT / Shodan
-       Shodan queries+dashboard, câmeras, routers, BinaryEdge, Onyphe
-
-  ...
-
-─────────────────────────────────────────────────────
-                 🛡️  OPSEC / ANONIMATO
-─────────────────────────────────────────────────────
-
-  [N]  OPSEC / Anonimato / Exposição
-       DeviceInfo.me, BrowserLeaks, IPLeak, Tor Check, Temp Mail...
-
-─────────────────────────────────────────────────────
-                    ⚙️  SISTEMA
-─────────────────────────────────────────────────────
-
-  [M]  Configurações / API Keys      Shodan, Censys, HIBP, ZoomEye
-  [?]  Estado das Ferramentas CLI    Verifica quais ferramentas estão instaladas
-  [S]  Guardar Sessão                Exporta o log completo da sessão para JSON
-  [0]  Sair
-
-ARGUS ▶
+# Criados automaticamente em execução:
+~/.argus_config.json  # Configurações e API keys (criado automaticamente)
+~/argus_sessions/     # Logs de sessão e relatórios de IA exportados
 ```
 
 ---
 
 ## ⚠️ Aviso Legal
 
-Esta ferramenta é disponibilizada **exclusivamente para fins educativos, académicos e de investigação de segurança autorizada**.
+Este software é disponibilizado **exclusivamente para fins educativos e de investigação em segurança**. A utilização do ARGUS em sistemas sem autorização explícita é ilegal e antiética.
 
-- ✅ Testes em sistemas **próprios** ou com **autorização expressa**
-- ✅ Contexto académico e certificações (CEH, OSCP, eJPT, PNPT, etc.)
-- ✅ CTF — Capture The Flag
-- ❌ Uso não autorizado em sistemas de terceiros
-- ❌ Actividades ilegais de qualquer natureza
-
-O autor não se responsabiliza por qualquer uso indevido desta ferramenta. **O utilizador é o único responsável pelas suas acções.**
+O autor não se responsabiliza por qualquer uso indevido desta ferramenta. Usa sempre em ambientes controlados, laboratórios, CTFs ou com autorização escrita do proprietário do sistema alvo.
 
 ---
 
 ## 👤 Autor
 
-Desenvolvido como ferramenta de apoio ao estudo de **cibersegurança e OSINT**.
+Desenvolvido por **Craveiro**
+Projecto criado no âmbito de formação em cibersegurança ofensiva — Kali Linux
 
 ---
 
 ## 📄 Licença
 
-MIT License — livre para usar, modificar e distribuir com atribuição.
+MIT License — livre para usar, modificar e distribuir com atribuição ao autor.
